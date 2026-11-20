@@ -5,6 +5,7 @@ import { openDatabase } from '../scripts/sqlite.mjs';
 import { midpoint, orderPreview, sidePrices, toAtomic } from '../server/math.js';
 import { campaignWindows, SAMPLE_MS } from '../server/schedule.js';
 import { sampleDue, scoreObservation } from '../server/campaigns.js';
+import { poolSummary } from '../server/feeds.js';
 
 const address = '0x0000000000000000000000000000000000000012';
 const pool = {
@@ -22,6 +23,25 @@ const quote = {
     asks: [{ cumulativeInputVolume: '10100000000', cumulativeVolume: toAtomic(100, 18).toString() }]
   }
 };
+
+test('keeps the official icons aligned with the base and quote on inverted pools', async () => {
+  const stock = 'https://cdn.metric.xyz/tokens/4663/stock.png';
+  const currency = 'https://cdn.metric.xyz/tokens/4663/currency.png';
+  const row = {
+    ...pool, token0Symbol: 'USDG', token1Symbol: 'NVDA',
+    token0LogoUrl: currency, token1LogoUrl: stock
+  };
+  const reversed = poolSummary(row, { inverted: true });
+  assert.equal(reversed.baseLogo, stock);
+  assert.equal(reversed.quoteLogo, currency);
+  assert.equal(poolSummary({ ...row, token1LogoUrl: 'https://example.com/tokens/stock.png' }, { inverted: true }).baseLogo, null);
+  const feeds = { pools: async () => ({ rows: [row] }) };
+  const key = '4663:' + address;
+  const url = 'https://depthdesk.example/api/pools/icons?pool=' + encodeURIComponent(key);
+  const result = await api(new Request(url), {}, feeds);
+  assert.equal(result.status, 200);
+  assert.deepEqual((await result.json()).pools[key], [{ symbol: 'USDG', logo: currency }, { symbol: 'NVDA', logo: stock }]);
+});
 
 test('handles asymmetric depth, sentinel prices, and decimal scales', () => {
   assert.deepEqual(sidePrices(quote), { bid: 99, ask: 101 });

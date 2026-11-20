@@ -1,4 +1,4 @@
-import { ADDRESS, FeedError, feeds as liveFeeds, poolSummary } from './feeds.js';
+import { ADDRESS, FeedError, feeds as liveFeeds, poolSummary, poolTokenIcons } from './feeds.js';
 import { accept, cancel, createCampaign, detail, HttpError, integer, listCampaigns, propose, sampleDue } from './campaigns.js';
 
 const CAMPAIGN_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -58,6 +58,27 @@ function poolCoordinates(chainId, address) {
   return [id, address.toLowerCase()];
 }
 
+async function campaignPoolIcons(url, feeds) {
+  const pools = url.searchParams.getAll('pool');
+  if (pools.length > 100) throw new HttpError(400, 'Request at most 100 pool icons.');
+  const groups = new Map();
+  for (const item of pools) {
+    const [chainValue, addressValue, extra] = item.split(':');
+    if (extra !== undefined) throw new HttpError(400, 'Enter a valid pool identifier.');
+    const [chain, address] = poolCoordinates(chainValue, addressValue);
+    if (!groups.has(chain)) groups.set(chain, new Set());
+    groups.get(chain).add(address);
+  }
+  if (groups.size > 6) throw new HttpError(400, 'Request pool icons from at most six chains.');
+  const results = await Promise.allSettled([...groups].map(async ([chain, addresses]) => {
+    const requested = [...addresses].sort();
+    const { rows } = await feeds.pools(chain, { address: requested.join(','), count: requested.length });
+    return rows.filter(row => addresses.has(row.poolAddress.toLowerCase()))
+      .map(row => [chain + ':' + row.poolAddress.toLowerCase(), poolTokenIcons(row)]);
+  }));
+  return Object.fromEntries(results.flatMap(result => result.status === 'fulfilled' ? result.value : []));
+}
+
 async function isJob(request, env) {
   const value = request.headers.get('authorization')?.replace(/^Bearer /, '');
   if (!env.DEPTHDESK_JOB_TOKEN || !value || value.length > 512) return false;
@@ -81,6 +102,9 @@ export async function api(request, env, feeds = liveFeeds) {
     }
     if (method === 'GET' && !id && resource === 'session') return json({ user: actor ? { name: actor.name } : null });
     if (method === 'GET' && !id && resource === 'chains') return json({ chains: await feeds.chains() });
+    if (method === 'GET' && resource === 'pools' && id === 'icons' && !action) {
+      return json({ pools: await campaignPoolIcons(url, feeds) });
+    }
     if (method === 'GET' && !id && resource === 'pools') {
       const chain = integer(Number(url.searchParams.get('chain')), 'Chain ID', 1, Number.MAX_SAFE_INTEGER);
       const offset = integer(Number(url.searchParams.get('offset') ?? 0), 'Offset', 0, 10_000);

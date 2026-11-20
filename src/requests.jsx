@@ -2,13 +2,39 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CalendarDays, ClipboardList, Copy, Crosshair, Handshake, Plus, Search, Waves } from 'lucide-react';
 import { read, useAction, useResource, write } from './api.js';
-import { AssetMark, bps, ErrorText, Feedback, money, names, number, PanelHeading, SignIn, Status, timestamp } from './ui.jsx';
+import { bps, ErrorText, Feedback, money, names, number, PanelHeading, PoolMark, SignIn, Status, timestamp } from './ui.jsx';
 
 const filters = ['all', 'open', 'scheduled', 'active', 'completed', 'cancelled'];
 const filtersLabel = { all: 'All requests', open: 'Open', scheduled: 'Scheduled', active: 'Measuring', completed: 'Completed', cancelled: 'Cancelled' };
 const shortAddress = value => value.slice(0, 6) + '…' + value.slice(-4);
 const usdCents = value => Math.round(Number(value) * 100);
 const FIELD_HELP = 'Fill the target order size in both directions within the price tolerance.';
+
+const campaignPoolId = item => item.chainId + ':' + item.address.toLowerCase();
+
+function useCampaignIcons(items) {
+  const params = new URLSearchParams();
+  for (const id of [...new Set(items.map(campaignPoolId))].sort()) params.append('pool', id);
+  const { data } = useResource(params.size ? '/api/pools/icons?' + params : null);
+  return data?.pools ?? {};
+}
+
+function campaignWithIcons(item, icons) {
+  const tokens = icons[campaignPoolId(item)] ?? [];
+  const [base, quote] = tokens[0]?.symbol === item.base ? tokens : [...tokens].reverse();
+  return { ...item, baseLogo: base?.logo, quoteLogo: quote?.logo };
+}
+
+function CampaignRows({ items }) {
+  const icons = useCampaignIcons(items);
+  return items.map(item => <tr key={item.id}>
+    <th scope="row"><Link to={'/requests/' + item.id} className="table-link">
+      <PoolMark pool={campaignWithIcons(item, icons)} /><span>{item.title}<small>{item.pair} · {item.sponsor}</small></span>
+    </Link></th>
+    <td>{names[item.chainId] ?? item.chainId}</td><td className="numeric">{number(item.size, 0)} {item.quote}</td>
+    <td className="numeric">{money(item.budget)}</td><td><Status value={item.status} /></td>
+  </tr>);
+}
 
 export function RequestBoard() {
   const [filter, setFilter] = useState('all');
@@ -22,6 +48,8 @@ export function RequestBoard() {
   const visible = [...new Map(campaigns.map(item => [item.id, item])).values()].filter(item =>
     (filter === 'all' || filter === item.status) &&
     (item.title + ' ' + item.pair + ' ' + item.sponsor).toLowerCase().includes(search.trim().toLowerCase()));
+  const groups = [];
+  for (let index = 0; index < visible.length; index += 100) groups.push(visible.slice(index, index + 100));
   const loadEarlier = () => pagination.submit(async () => {
     const result = await read('/api/requests?before=' + next);
     setEarlier(items => [...items, ...result.campaigns]);
@@ -46,13 +74,7 @@ export function RequestBoard() {
         {!visible.length ? (!campaigns.length && <Link className="button secondary" to="/requests/new">Create the first request</Link>) :
           <div className="table-scroll"><table className="list-table">
             <thead><tr><th>Request</th><th>Network</th><th>Order size</th><th>Budget</th><th>Status</th></tr></thead>
-            <tbody>{visible.map(item => <tr key={item.id}>
-              <th scope="row"><Link to={'/requests/' + item.id} className="table-link">
-                <AssetMark symbol={item.base} /><span>{item.title}<small>{item.pair} · {item.sponsor}</small></span>
-              </Link></th>
-              <td>{names[item.chainId] ?? item.chainId}</td><td className="numeric">{number(item.size, 0)} {item.quote}</td>
-              <td className="numeric">{money(item.budget)}</td><td><Status value={item.status} /></td>
-            </tr>)}</tbody>
+            <tbody>{groups.map(items => <CampaignRows key={items[0].id} items={items} />)}</tbody>
           </table></div>}
       </Feedback>
       <ErrorText error={pagination.error} />
@@ -162,7 +184,7 @@ export function RequestForm() {
       <aside className="panel summary-panel">
         <PanelHeading icon={CalendarDays} title="Measurement" />
         <div className="panel-body summary-content">
-          <div className="summary-pair"><AssetMark symbol={chosen?.base} /><div><strong>{chosen?.pair ?? 'Select a pool'}</strong>
+          <div className="summary-pair"><PoolMark pool={chosen} /><div><strong>{chosen?.pair ?? 'Select a pool'}</strong>
             <small>{chosen?.chain ?? names[chain] ?? 'Metric'}</small></div></div>
           <dl><div><dt>Benchmark</dt><dd>{chosen?.equity ? 'Robinhood stock quote, adjusted for token units' : 'Metric pool bid/ask midpoint'}</dd></div>
             <div><dt>Schedule</dt><dd>{marketOpen ? 'First 30 minutes of each U.S. equity session' : 'Every five minutes after acceptance'}</dd></div></dl>
@@ -204,6 +226,7 @@ export function RequestDetail() {
   const { id } = useParams();
   const url = '/api/requests/' + encodeURIComponent(id);
   const { data, error, loading, reload } = useResource(url, 20_000);
+  const icons = useCampaignIcons(data ? [data] : []);
   const session = useResource('/api/session');
   const action = useAction();
   const [copied, setCopied] = useState('');
@@ -220,7 +243,7 @@ export function RequestDetail() {
     <Feedback loading={loading} error={error} retry={reload}>
       {data && <>
         <div className="page-heading with-action">
-          <div><span className="section-label"><AssetMark symbol={data.base} /> {data.pair} · {names[data.chainId] ?? data.chainId}</span>
+          <div><span className="section-label"><PoolMark pool={campaignWithIcons(data, icons)} /> {data.pair} · {names[data.chainId] ?? data.chainId}</span>
             <h1>{data.title}</h1><p>Sponsored by {data.sponsor}</p></div>
           <div className="button-row"><Status value={data.status} />
             <button className="button secondary compact" onClick={copyLink} type="button"><Copy size={16} />Copy link</button></div>

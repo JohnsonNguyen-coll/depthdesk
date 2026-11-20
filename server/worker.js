@@ -20,7 +20,7 @@ export default {
     return new Response(body, { headers: {
       'content-type': contentTypes[type] ?? 'application/octet-stream',
       'cache-control': pathname.startsWith('/assets/') ? 'public, max-age=31536000, immutable' : 'no-cache',
-      'content-security-policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'self'",
+      'content-security-policy': "default-src 'self'; img-src 'self' data: https://cdn.metric.xyz https://cdn.robinhood.com; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'self'",
       'referrer-policy': 'strict-origin-when-cross-origin',
       'x-content-type-options': 'nosniff'
     } });

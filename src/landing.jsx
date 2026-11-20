@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Activity, CircleDot, ClipboardList, LineChart, Radar, Waves } from 'lucide-react';
 import { useResource } from './api.js';
-import { AssetMark, bps, Feedback, number, PanelHeading } from './ui.jsx';
+import { bps, Feedback, number, PanelHeading, PoolMark } from './ui.jsx';
 import Lightning from './vendor/react-bits/Lightning.jsx';
 
 function HeroLightning() {
@@ -21,7 +21,7 @@ function HeroLightning() {
   return <div className="hero-visual" aria-hidden="true">
     <div className="hero-grid" />
     <div className="storm">
-      {running && <Lightning color="#abdf7e" bolts={2} xOffset={0.06} spread={0.72} branches={0.76}
+      {running && <Lightning color="#78bbff" bolts={2} xOffset={0.06} spread={0.72} branches={0.76}
         angle={19} size={1.06} thickness={0.82} speed={0.56} intensity={0.83} glow={0.86}
         flicker={0.08} mouseInteraction={false} clickStrike={false} intro={false} dpr={1} />}
     </div>
@@ -42,7 +42,7 @@ function MarketStrip() {
           <thead><tr><th>Market</th><th>Metric ask</th><th>Reference ask</th><th>Difference</th></tr></thead>
           <tbody>
             {markets.map(item => <tr key={item.address}>
-              <th scope="row"><Link to={'/rwa?pool=' + item.address}><AssetMark symbol={item.base} /><span>{item.base}<small>{item.quote}</small></span></Link></th>
+              <th scope="row"><Link to={'/rwa?pool=' + item.address}><PoolMark pool={item} /><span>{item.base}<small>{item.quote}</small></span></Link></th>
               <td>{number(item.score.metric.ask)}</td><td>{number(item.score.reference?.ask)}</td>
               <td className={item.score.buyBps == null ? 'muted' : 'data-accent'}>{bps(item.score.buyBps)}</td>
             </tr>)}

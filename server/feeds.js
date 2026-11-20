@@ -173,14 +173,37 @@ export function makeFeeds(fetchRequest = fetch) {
   return { assets, chains, equityPair, featured, pool, pools, prices, readPool };
 }
 
+function tokenLogo(value) {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    if (url.username || url.password) return null;
+    if (url.origin === 'https://cdn.metric.xyz' && url.pathname.startsWith('/tokens/')) return url.href;
+    if (url.origin === 'https://cdn.robinhood.com' && url.pathname.startsWith('/ncw_assets/logos/')) return url.href;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+export function poolTokenIcons(row) {
+  return [
+    { symbol: row.token0Symbol, logo: tokenLogo(row.token0LogoUrl) },
+    { symbol: row.token1Symbol, logo: tokenLogo(row.token1LogoUrl) }
+  ];
+}
+
 export function poolSummary(row, equity) {
   const inverted = equity?.inverted ?? false;
+  const icons = poolTokenIcons(row);
+  const [base, quote] = inverted ? [icons[1], icons[0]] : icons;
   return {
     chainId: row.chainId, chain: row.chain,
     address: row.poolAddress,
-    pair: inverted ? row.token1Symbol + '/' + row.token0Symbol : row.pair,
-    base: inverted ? row.token1Symbol : row.token0Symbol,
-    quote: inverted ? row.token0Symbol : row.token1Symbol,
+    pair: inverted ? base.symbol + '/' + quote.symbol : row.pair,
+    base: base.symbol, quote: quote.symbol,
+    baseLogo: base.logo ?? tokenLogo(equity?.asset?.logoUrl),
+    quoteLogo: quote.logo,
     equity: Boolean(equity),
     tier: row.tierQualification ?? null
   };

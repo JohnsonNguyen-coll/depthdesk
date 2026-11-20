@@ -43,7 +43,6 @@ function App() {
       <div className="footer-links">
         <Link to="/requests">Market Requests</Link><Link to="/rwa">RWA Quotes</Link>
         <a href="https://docs.metric.xyz/" target="_blank" rel="noreferrer">Metric docs</a>
-        <a href="/licenses/react-bits.txt" target="_blank" rel="noreferrer">React Bits license</a>
       </div>
     </div></footer>
   </>;

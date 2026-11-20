@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Activity, BarChart3, CircleDot, RefreshCcw, Search } from 'lucide-react';
 import { useResource } from './api.js';
-import { AssetMark, bps, Feedback, number, PanelHeading, SourceNote, Status, timestamp } from './ui.jsx';
+import { bps, Feedback, number, PanelHeading, PoolMark, SourceNote, Status, timestamp } from './ui.jsx';
 
 function quoteState(item) {
   const { metric, reference } = item.score;
@@ -27,7 +27,7 @@ function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
     <PanelHeading icon={BarChart3} title="Inspect order depth" trailing={<button type="button" className="icon-button"
       title="Refresh order depth" aria-label="Refresh order depth" onClick={reload}><RefreshCcw size={17} /></button>} />
     <div className="panel-body summary-content">
-      <div className="summary-pair"><AssetMark symbol={item.base} /><div><strong>{item.pair}</strong><small>{item.chain}</small></div></div>
+      <div className="summary-pair"><PoolMark pool={item} /><div><strong>{item.pair}</strong><small>{item.chain}</small></div></div>
       <form className="quote-size" onSubmit={event => { event.preventDefault(); setSize(Number(visibleSize)); }}>
         <label className="field">Order size ({item.quote})<input type="number" value={visibleSize} min="1" max="10000000" required
           onChange={event => setVisibleSize(event.target.value)} /></label>
@@ -82,7 +82,7 @@ export default function QuoteMonitor() {
               <tbody>{visible.map(item => <tr key={item.address} className={selected?.address === item.address ? 'selected-row' : ''}>
                 <th scope="row"><button className="table-link" aria-pressed={selected?.address === item.address}
                   type="button" onClick={() => setParams({ pool: item.address }, { replace: true })}>
-                  <AssetMark symbol={item.base} /><span>{item.base}<small>{item.quote}</small></span>
+                  <PoolMark pool={item} /><span>{item.base}<small>{item.quote}</small></span>
                 </button></th>
                 <td className="numeric"><div>{number(item.score.metric.bid, 4)}</div><div className="muted">{number(item.score.metric.ask, 4)}</div></td>
                 <td className="numeric"><div>{number(item.score.reference?.bid, 4)}</div><div className="muted">{number(item.score.reference?.ask, 4)}</div></td>

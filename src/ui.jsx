@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Activity, CircleAlert, CloudOff, Layers3, Radio, RefreshCcw } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
 
@@ -26,10 +27,21 @@ export function Status({ value }) {
   return <span className={'status status-' + value}><i aria-hidden="true" />{label}</span>;
 }
 
-export const assetColors = { NVDA: '#beed70', AAPL: '#dce0e3', TSLA: '#ff8787', META: '#83b4ff', GOOGL: '#ffce71', SPY: '#9dd6cd' };
-export function AssetMark({ symbol }) {
-  return <span className="asset-mark" style={{ '--asset': assetColors[symbol] ?? '#b1c7bd' }} aria-hidden="true">
-    {symbol?.slice(0, 2) || '?'}
+export function AssetMark({ symbol, logo }) {
+  const [failed, setFailed] = useState(null);
+  return <span className="asset-mark" aria-hidden="true">
+    {logo && failed !== logo ?
+      <img src={logo} className="asset-image" alt="" width="36" height="36" loading="lazy" decoding="async"
+        referrerPolicy="no-referrer" onError={() => setFailed(logo)} /> :
+      symbol?.slice(0, 2) || '?'}
+  </span>;
+}
+
+export function PoolMark({ pool }) {
+  if (!pool?.quote) return <AssetMark symbol={pool?.base} logo={pool?.baseLogo} />;
+  return <span className="asset-pair" aria-hidden="true">
+    <AssetMark symbol={pool.base} logo={pool.baseLogo} />
+    <span className="quote-mark"><AssetMark symbol={pool.quote} logo={pool.quoteLogo} /></span>
   </span>;
 }
 
