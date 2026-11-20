@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { CalendarDays, ClipboardList, Copy, Crosshair, Handshake, Plus, Search, Waves } from 'lucide-react';
 import { read, useAction, useResource, write } from './api.js';
 import { bps, ErrorText, Feedback, money, names, number, PanelHeading, PoolMark, SignIn, Status, timestamp } from './ui.jsx';
 
@@ -57,9 +56,9 @@ export function RequestBoard() {
   });
   return <div className="wrap page">
     <div className="page-heading with-action">
-      <div><span className="section-label"><Waves size={16} /> Liquidity desk</span><h1>Market requests</h1>
+      <div><h1>Market requests</h1>
         <p>Find campaigns to curate, or commission liquidity for a Metric pool.</p></div>
-      <Link className="button primary" to="/requests/new"><Plus size={18} />Create request</Link>
+      <Link className="button primary" to="/requests/new">Create request</Link>
     </div>
     <section className="panel board" aria-label="Market requests">
       <div className="toolbar">
@@ -67,7 +66,7 @@ export function RequestBoard() {
           {filters.map(value => <button key={value} type="button" aria-pressed={value === filter}
             onClick={() => setFilter(value)}>{filtersLabel[value]}</button>)}
         </div>
-        <label className="search-field"><Search size={17} /><input aria-label="Search requests" placeholder="Search requests" value={search} onChange={event => setSearch(event.target.value)} /></label>
+        <label className="search-field"><input aria-label="Search requests" placeholder="Search requests" value={search} onChange={event => setSearch(event.target.value)} /></label>
       </div>
       <Feedback loading={loading} error={error} retry={reload}
         empty={!visible.length && (campaigns.length ? 'No requests match these filters.' : 'No liquidity requests have been posted yet.')}>
@@ -133,11 +132,11 @@ export function RequestForm() {
 
   return <div className="wrap page">
     <Link className="back-link" to="/requests">Market requests</Link>
-    <div className="page-heading"><span className="section-label"><ClipboardList size={16} /> Sponsor a pool</span>
+    <div className="page-heading">
       <h1>Create request</h1><p>Give curators a target they can price and a result you can measure.</p></div>
     <div className="detail-layout">
       <form className="panel form-panel" onSubmit={submit}>
-        <PanelHeading icon={Crosshair} title="Campaign terms" />
+        <PanelHeading title="Campaign terms" />
         <div className="panel-body form-grid">
           <label className="field full">Request title<input name="title" minLength={6} maxLength={90} required placeholder="e.g. Two-sided liquidity for NVDA" /></label>
           <label className="field full">Requirements<textarea name="description" minLength={15} maxLength={2000} rows={4} required
@@ -182,7 +181,7 @@ export function RequestForm() {
         </div>
       </form>
       <aside className="panel summary-panel">
-        <PanelHeading icon={CalendarDays} title="Measurement" />
+        <PanelHeading title="Measurement" />
         <div className="panel-body summary-content">
           <div className="summary-pair"><PoolMark pool={chosen} /><div><strong>{chosen?.pair ?? 'Select a pool'}</strong>
             <small>{chosen?.chain ?? names[chain] ?? 'Metric'}</small></div></div>
@@ -199,7 +198,7 @@ export function RequestForm() {
 function CampaignReport({ report, target }) {
   if (!report.planned) return null;
   return <section className="panel report">
-    <PanelHeading icon={Crosshair} title="Campaign report" trailing={<span className="muted numeric">{report.elapsed} / {report.planned} scheduled checks</span>} />
+    <PanelHeading title="Campaign report" trailing={<span className="muted numeric">{report.elapsed} / {report.planned} scheduled checks</span>} />
     <div className="report-stats">
       <div><span>Pass rate</span><strong>{report.passRate == null ? '—' : number(report.passRate, 1) + '%'}</strong><small>Target {target}%</small></div>
       <div><span>Passed</span><strong className="data-accent">{report.pass}</strong></div>
@@ -246,16 +245,16 @@ export function RequestDetail() {
           <div><span className="section-label"><PoolMark pool={campaignWithIcons(data, icons)} /> {data.pair} · {names[data.chainId] ?? data.chainId}</span>
             <h1>{data.title}</h1><p>Sponsored by {data.sponsor}</p></div>
           <div className="button-row"><Status value={data.status} />
-            <button className="button secondary compact" onClick={copyLink} type="button"><Copy size={16} />Copy link</button></div>
+            <button className="text-link" onClick={copyLink} type="button">Copy link</button></div>
         </div>
         {copied && <div className="toast" role="status" onClick={() => setCopied('')}>{copied}</div>}
         <div className="detail-layout">
           <div className="stack">
-            <section className="panel"><PanelHeading icon={ClipboardList} title="Requirements" />
+            <section className="panel"><PanelHeading title="Requirements" />
               <p className="panel-body body-copy">{data.description}</p></section>
             <CampaignReport report={data.report} target={data.target} />
             <section className="panel">
-              <PanelHeading icon={Handshake} title={'Proposals (' + data.proposalCount + ')'} />
+              <PanelHeading title={'Proposals (' + data.proposalCount + ')'} />
               <div className="panel-body stack small-stack">
                 <ErrorText error={action.error} />
                 {data.proposals.map(offer => <article key={offer.id} className="proposal">
@@ -282,7 +281,7 @@ export function RequestDetail() {
             </section>
           </div>
           <aside className="panel summary-panel">
-            <PanelHeading icon={Crosshair} title="Campaign target" />
+            <PanelHeading title="Campaign target" />
             <div className="panel-body summary-content">
               <div className="big-amount"><small>Sponsor budget</small><strong>{money(data.budget)}</strong></div>
               <dl>

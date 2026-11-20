@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Activity, BarChart3, CircleDot, RefreshCcw, Search } from 'lucide-react';
 import { useResource } from './api.js';
 import { bps, Feedback, number, PanelHeading, PoolMark, SourceNote, Status, timestamp } from './ui.jsx';
 
@@ -24,8 +23,8 @@ function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
   const benchmarkValue = display.reference?.multiplier;
   const status = display.reference?.status ?? 'unavailable';
   return <aside className="panel quote-detail">
-    <PanelHeading icon={BarChart3} title="Inspect order depth" trailing={<button type="button" className="icon-button"
-      title="Refresh order depth" aria-label="Refresh order depth" onClick={reload}><RefreshCcw size={17} /></button>} />
+    <PanelHeading title="Order depth" trailing={<button type="button" className="text-link"
+      aria-label="Refresh order depth" onClick={reload}>Refresh</button>} />
     <div className="panel-body summary-content">
       <div className="summary-pair"><PoolMark pool={item} /><div><strong>{item.pair}</strong><small>{item.chain}</small></div></div>
       <form className="quote-size" onSubmit={event => { event.preventDefault(); setSize(Number(visibleSize)); }}>
@@ -63,15 +62,15 @@ export default function QuoteMonitor() {
   const selected = visible.find(item => item.address.toLowerCase() === params.get('pool')?.toLowerCase()) ?? visible[0];
   return <div className="wrap page">
     <div className="page-heading with-action">
-      <div><span className="section-label"><Activity size={16} /> Tokenized equities</span><h1>RWA Quotes</h1>
+      <div><h1>RWA Quotes</h1>
         <p>Compare Metric’s buy and sell quotes with the underlying stock, in the same units.</p></div>
-      <button className="button secondary" type="button" onClick={reload}><RefreshCcw size={17} />Refresh quotes</button>
+      <button className="text-link" type="button" onClick={reload}>Refresh quotes</button>
     </div>
     <div className="quote-layout">
       <section className="panel board">
         <div className="toolbar">
-          <span className="network-label"><CircleDot size={15} />Robinhood Chain</span>
-          <label className="search-field"><Search size={17} /><input value={search} onChange={event => setSearch(event.target.value)}
+          <span className="network-label">Robinhood Chain</span>
+          <label className="search-field"><input value={search} onChange={event => setSearch(event.target.value)}
             placeholder="Search equities" aria-label="Search equities" /></label>
         </div>
         <Feedback loading={loading} error={error} retry={reload}

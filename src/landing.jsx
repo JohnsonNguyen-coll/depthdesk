@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, CircleDot, ClipboardList, LineChart, Radar, Waves } from 'lucide-react';
 import { useResource } from './api.js';
 import { bps, Feedback, number, PanelHeading, PoolMark } from './ui.jsx';
 import Lightning from './vendor/react-bits/Lightning.jsx';
@@ -19,10 +18,9 @@ function HeroLightning() {
     };
   }, []);
   return <div className="hero-visual" aria-hidden="true">
-    <div className="hero-grid" />
     <div className="storm">
-      {running && <Lightning color="#78bbff" bolts={2} xOffset={0.06} spread={0.72} branches={0.76}
-        angle={19} size={1.06} thickness={0.82} speed={0.56} intensity={0.83} glow={0.86}
+      {running && <Lightning color="#78bbff" bolts={1} xOffset={0.12} branches={0.62}
+        angle={19} size={1.06} thickness={0.8} speed={0.48} intensity={0.74} glow={0.8}
         flicker={0.08} mouseInteraction={false} clickStrike={false} intro={false} dpr={1} />}
     </div>
     <div className="hero-scrim" />
@@ -34,12 +32,12 @@ function MarketStrip() {
   const markets = data?.markets?.slice(0, 3) ?? [];
   const hasLive = markets.some(item => item.score.metric.bid && item.score.metric.ask && item.score.reference?.status === 'live');
   return <section className="market-strip" aria-label="Tokenized equity quotes">
-    <PanelHeading icon={Activity} title="RWA market quotes"
-      trailing={hasLive ? <span className="inline-state live"><CircleDot size={13} />Live</span> : <span className="inline-state">Robinhood Chain</span>} />
+    <PanelHeading title="RWA quotes"
+      trailing={hasLive ? <span className="inline-state live">Live</span> : <span className="inline-state">Robinhood Chain</span>} />
     <Feedback loading={loading} error={error} empty={!markets.length && 'No equity pools are currently available.'}>
       <div className="table-scroll">
         <table className="market-mini">
-          <thead><tr><th>Market</th><th>Metric ask</th><th>Reference ask</th><th>Difference</th></tr></thead>
+          <thead><tr><th>Market</th><th>Metric ask</th><th>Stock ask</th><th>Difference</th></tr></thead>
           <tbody>
             {markets.map(item => <tr key={item.address}>
               <th scope="row"><Link to={'/rwa?pool=' + item.address}><PoolMark pool={item} /><span>{item.base}<small>{item.quote}</small></span></Link></th>
@@ -50,7 +48,7 @@ function MarketStrip() {
         </table>
       </div>
     </Feedback>
-    <div className="market-strip-footer"><span>Prices in USDG per token</span><Link to="/rwa">Open quote monitor</Link></div>
+    <p className="market-strip-note">Prices in USDG per token</p>
   </section>;
 }
 
@@ -60,27 +58,26 @@ export default function Landing() {
       <HeroLightning />
       <div className="wrap hero-content">
         <div className="hero-copy">
-          <div className="hero-kicker"><span /> A community tool for Metric</div>
-          <h1>Liquidity,<br /><em>on demand.</em></h1>
-          <p>Commission liquidity for a Metric pool, pick a curator, and measure the result. Track tokenized equity quotes alongside their stock prices.</p>
+          <h1>Commission<br /><em>liquidity.</em></h1>
+          <p>Post a liquidity target for a Metric pool, review curator proposals, and track quoted depth throughout the campaign.</p>
           <div className="button-row">
-            <Link className="button primary" to="/requests"><Waves size={19} />Explore requests</Link>
-            <Link className="button secondary hero-secondary" to="/rwa">View RWA quotes</Link>
+            <Link className="button primary" to="/requests">Browse requests</Link>
+            <Link className="text-link" to="/rwa">View RWA quotes</Link>
           </div>
         </div>
         <MarketStrip />
       </div>
     </section>
     <section className="wrap workflow" aria-labelledby="workflow-title">
-      <div className="workflow-heading">
-        <h2 id="workflow-title">From request to results</h2>
+      <div className="workflow-intro">
+        <h2 id="workflow-title">How requests work</h2>
         <Link className="text-link" to="/requests/new">Create a request</Link>
       </div>
-      <div className="workflow-grid">
-        <article><ClipboardList size={23} /><h3>Set the target</h3><p>Choose a pool, order size, price tolerance, and budget.</p></article>
-        <article><Radar size={23} /><h3>Select a curator</h3><p>Review proposals and pick the curator who will run the campaign.</p></article>
-        <article><LineChart size={23} /><h3>Check the quote history</h3><p>See when the pool met your target on both sides of the market.</p></article>
-      </div>
+      <ol className="workflow-steps" role="list">
+        <li><h3>Set the target</h3><p>Choose a pool, order size, price tolerance, and budget.</p></li>
+        <li><h3>Choose a curator</h3><p>Review proposals and select who will run the campaign.</p></li>
+        <li><h3>Review the report</h3><p>See when quoted buy and sell depth met your target.</p></li>
+      </ol>
     </section>
   </>;
 }

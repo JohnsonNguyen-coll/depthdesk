@@ -1,7 +1,6 @@
 import React, { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter, Link, NavLink, Route, Routes, useLocation } from 'react-router-dom';
-import { Plus } from 'lucide-react';
 import '@fontsource-variable/inter/wght.css';
 import '@fontsource-variable/space-grotesk/wght.css';
 import './styles.css';
@@ -26,7 +25,7 @@ function App() {
         <NavLink to="/requests">Requests</NavLink>
         <NavLink to="/rwa">RWA Quotes</NavLink>
       </nav>
-      <Link className="button primary compact top-action" to="/requests/new"><Plus size={17} />New request</Link>
+      <Link className="text-link top-action" to="/requests/new">New request</Link>
     </div></header>
     <main id="main" tabIndex="-1">
       <Routes>
