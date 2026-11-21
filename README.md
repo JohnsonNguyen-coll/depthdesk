@@ -1,4 +1,4 @@
-# Metric DepthDesk
+# DepthDesk
 
 An independent community app for commissioning liquidity and inspecting tokenized-equity quotes on Metric.
 

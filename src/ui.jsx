@@ -14,9 +14,9 @@ export const timestamp = value => value == null ? '—' : new Intl.DateTimeForma
 }).format(value);
 
 export function Brand() {
-  return <Link className="brand" to="/" aria-label="Metric DepthDesk home">
+  return <Link className="brand" to="/" aria-label="DepthDesk home">
     <img className="brand-icon" src="/mark.svg" width="38" height="38" alt="" />
-    <span>Metric<span className="brand-accent"> DepthDesk</span></span>
+    <span className="brand-accent">DepthDesk</span>
   </Link>;
 }
 

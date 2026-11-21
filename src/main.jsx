@@ -14,7 +14,7 @@ function App() {
   useEffect(() => {
     window.scrollTo(0, 0);
     const section = pathname.startsWith('/rwa') ? 'RWA Quotes' : pathname.startsWith('/requests') ? 'Market Requests' : '';
-    document.title = section ? section + ' | Metric DepthDesk' : 'Metric DepthDesk';
+    document.title = section ? section + ' | DepthDesk' : 'DepthDesk';
   }, [pathname]);
   return <>
     <a className="skip-link" href="#main">Skip to content</a>
