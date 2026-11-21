@@ -31,6 +31,12 @@ Public Metric catalog and quote reads do not require a Metric API key. Equity co
 
 Campaigns score both directions at the requested size versus the campaign benchmark. The final-bin fill is a conservative proportional estimate based on quoted depth. The schedule includes missed observations in the denominator. Sponsors and curators arrange payment privately.
 
+### Railway
+
+Use Node.js 22.13 or newer, build with npm run build, and start with npm start. On Railway, the server listens at 0.0.0.0 on the injected PORT. Use /api/health for the health check. Attach a persistent volume at /data and set DEPTHDESK_DB=/data/depthdesk.db.
+
+Railway serves the public pages and read APIs. Campaign writes require an identity provider integrated with the Railway runtime.
+
 ### Separate frontend and API
 
 For a static frontend on a different origin, set the API's public origin as a frontend build variable. Set the frontend origin in the API service's runtime variables.
@@ -38,7 +44,7 @@ For a static frontend on a different origin, set the API's public origin as a fr
 - Frontend build — VITE_API_URL=https://depthdesk-api.example.com
 - API runtime — DEPTHDESK_ALLOWED_ORIGINS=https://depthdesk.example.com
 
-Use full origins including the scheme, and separate multiple exact frontend origins with commas. Rebuild the frontend after changing the API URL. Leave these variables unset for same-origin requests. The API supports credentialed CORS for configured origins, and campaign writes still require an authenticated user. Deploying outside Sites requires a production identity provider and server entrypoint.
+Use full origins including the scheme, and separate multiple exact frontend origins with commas. Rebuild the frontend after changing the API URL. Leave these variables unset for same-origin requests. The API supports credentialed CORS for configured origins, and campaign writes still require an authenticated user. Authenticated campaign writes outside Sites require an identity provider.
 
 ## Commits
 
