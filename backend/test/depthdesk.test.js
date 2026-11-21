@@ -70,6 +70,34 @@ test('distinguishes unavailable observations from insufficient depth', () => {
   assert.equal(thin.outcome, 'fail');
 });
 
+test('builds pool research from a fresh depth snapshot and omits stale estimates', async () => {
+  const url = 'https://depthdesk.example/api/research/4663/' + address + '?size=30000';
+  const pathQuote = { ...quote, serverTs: Date.now() / 1000, priceProviderStatus: 'healthy' };
+  const feeds = {
+    pool: async () => ({ ...pool, volumeByWindow: { '24h': 2300 } }),
+    prices: async () => new Map([[address, pathQuote]]),
+    assets: async () => new Map(),
+    equityPair: () => null
+  };
+  const response = await api(new Request(url), {}, feeds);
+  assert.equal(response.status, 200);
+  const research = await response.json();
+  assert.equal(research.pool.volume24h, 2300);
+  assert.equal(research.quote.spreadBps, 200);
+  assert.deepEqual(research.sizes.map(level => level.amount), [1000, 5000, 10000, 30000]);
+  assert.equal(research.sizes[0].buy.coverage, 100);
+  assert.equal(research.sizes[0].sell.complete, true);
+  assert.equal(research.sizes.at(-1).buy.complete, false);
+  assert.ok(research.sizes.at(-1).buy.coverage > 0 && research.sizes.at(-1).buy.coverage < 100);
+
+  pathQuote.serverTs -= 120;
+  const stale = await (await api(new Request(url), {}, feeds)).json();
+  assert.equal(stale.quote.status, 'stale');
+  assert.equal(stale.sizes[0].buy, null);
+  const invalid = await api(new Request(url.replace('30000', '0')), {}, feeds);
+  assert.equal(invalid.status, 400);
+});
+
 test('answers CORS preflight only for a configured origin and supported method', async () => {
   const frontend = 'https://depthdesk.example';
   const url = 'https://api.depthdesk.example/api/requests';

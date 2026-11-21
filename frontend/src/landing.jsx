@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useResource } from './api.js';
-import { bps, Feedback, number, PanelHeading, PoolMark } from './ui.jsx';
+import { bps, Feedback, number, PoolMark, SourceNote, Status } from './ui.jsx';
+import './overview.css';
+import PoolResearch from './pool-research.jsx';
 import Lightning from './vendor/react-bits/Lightning.jsx';
 
 function HeroLightning() {
@@ -25,28 +27,58 @@ function HeroLightning() {
   </div>;
 }
 
-function MarketStrip() {
-  const { data, error, loading } = useResource('/api/rwa/quotes', 20_000);
-  const markets = data?.markets?.slice(0, 3) ?? [];
-  const hasLive = markets.some(item => item.score.metric.bid && item.score.metric.ask && item.score.reference?.status === 'live');
-  return <section className="wrap market-strip" aria-label="Tokenized equity quotes">
-    <PanelHeading title="RWA quotes"
-      trailing={hasLive ? <span className="inline-state live">Live</span> : <span className="inline-state">Robinhood Chain</span>} />
-    <Feedback loading={loading} error={error} empty={!markets.length && 'No equity pools are currently available.'}>
+function EquityMarket() {
+  const result = useResource('/api/rwa/quotes', 20_000);
+  const markets = result.data?.markets ?? [];
+  return <section className="wrap overview-section" aria-labelledby="equity-market-title">
+    <header className="overview-heading">
+      <div><h2 id="equity-market-title">Tokenized equities</h2>
+        <p>Metric quotes alongside the underlying Robinhood reference, adjusted to the same token units.</p>
+      </div>
+      <Link className="text-link" to="/rwa">Open RWA Quote Monitor</Link>
+    </header>
+    <Feedback loading={result.loading} error={result.error} retry={result.reload} empty={!markets.length && 'No equity pools are currently available.'}>
       <div className="table-scroll">
-        <table className="market-mini">
-          <thead><tr><th>Market</th><th>Metric ask</th><th>Stock ask</th><th>Difference</th></tr></thead>
+        <table className="market-mini equity-table">
+          <thead><tr><th>Market</th><th>Metric bid</th><th>Metric ask</th><th>Stock ask</th><th>Ask difference</th><th>Reference</th></tr></thead>
           <tbody>
             {markets.map(item => <tr key={item.address}>
-              <th scope="row"><Link to={'/rwa?pool=' + item.address}><PoolMark pool={item} /><span>{item.base}<small>{item.quote}</small></span></Link></th>
-              <td>{number(item.score.metric.ask)}</td><td>{number(item.score.reference?.ask)}</td>
+              <th scope="row"><Link to={'/rwa?pool=' + item.address}>
+                <PoolMark pool={item} /><span>{item.base}<small>{item.name || item.pair}</small></span>
+              </Link></th>
+              <td>{number(item.score.metric.bid, 4)}</td>
+              <td>{number(item.score.metric.ask, 4)}</td>
+              <td>{number(item.score.reference?.ask, 4)}</td>
               <td className={item.score.buyBps == null ? 'muted' : 'data-accent'}>{bps(item.score.buyBps)}</td>
+              <td><Status value={item.score.reference?.status ?? 'unavailable'} /></td>
             </tr>)}
           </tbody>
         </table>
       </div>
     </Feedback>
-    <p className="market-strip-note">Prices in USDG per token</p>
+    <div className="equity-source"><p>Prices in USDG per token.</p><SourceNote /></div>
+  </section>;
+}
+
+function RecentRequests() {
+  const result = useResource('/api/requests', 30_000);
+  const campaigns = result.data?.campaigns?.slice(0, 3) ?? [];
+  return <section className="wrap overview-section request-overview" aria-labelledby="overview-requests-title">
+    <header className="overview-heading">
+      <div><h2 id="overview-requests-title">Liquidity requests</h2>
+        <p>Set an order size and price tolerance, select a curator, and measure the pool against your target.</p>
+      </div>
+      <Link className="text-link" to="/requests">View request board</Link>
+    </header>
+    <Feedback loading={result.loading} error={result.error} retry={result.reload} empty={!campaigns.length && 'No liquidity requests have been posted yet.'}>
+      <ul className="overview-requests">
+        {campaigns.map(campaign => <li key={campaign.id}>
+          <Link to={'/requests/' + campaign.id}><strong>{campaign.title}</strong><span>{campaign.pair}</span></Link>
+          <Status value={campaign.status} />
+        </li>)}
+      </ul>
+    </Feedback>
+    <Link className="button secondary" to="/requests/new">Create a request</Link>
   </section>;
 }
 
@@ -57,14 +89,16 @@ export default function Landing() {
       <div className="wrap hero-content">
         <div className="hero-copy">
           <h1>Commission<br />liquidity.</h1>
-          <p>Set a liquidity target for a Metric pool, choose a curator, and track quoted depth during the campaign.</p>
+          <p>Research quoted depth on Metric, set a liquidity target, and track how the pool performs.</p>
           <div className="button-row">
-            <Link className="button primary" to="/requests">Browse requests</Link>
-            <Link className="text-link" to="/rwa">View RWA quotes</Link>
+            <a className="button primary" href="#pool-research">Research pools</a>
+            <Link className="text-link" to="/requests">Browse requests</Link>
           </div>
         </div>
       </div>
     </section>
-    <MarketStrip />
+    <PoolResearch />
+    <EquityMarket />
+    <RecentRequests />
   </>;
 }

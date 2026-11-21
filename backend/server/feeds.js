@@ -132,17 +132,16 @@ export function makeFeeds(fetchRequest = fetch) {
 
   async function readPool(row, quote, pair, size = null) {
     const inverted = pair?.inverted ?? false;
-    const metricAt = Number(quote?.serverTs) * 1000;
-    const metricLive = Number.isFinite(metricAt) && Math.abs(Date.now() - metricAt) <= MAX_POOL_AGE;
-    const metric = metricLive ? sidePrices(quote, inverted) : { bid: null, ask: null };
+    const { bid, ask, asOf, status, fresh } = metricSnapshot(quote, inverted);
+    const metric = { bid, ask };
     const ref = pair ? await reference(pair).catch(() => ({ status: 'unavailable' })) : null;
     const benchmark = pair ? (ref.status === 'live' ? ref : null) : metric;
     const mid = benchmark ? midpoint(benchmark) : null;
-    const preview = size && metricLive ? orderPreview(row, quote, size, mid, inverted) : null;
+    const preview = size && fresh ? orderPreview(row, quote, size, mid, inverted) : null;
     return {
       metric, reference: ref, midpoint: mid, preview,
-      metricAt: Number.isFinite(metricAt) ? metricAt : null,
-      metricStatus: metricLive ? quote.priceProviderStatus ?? 'unknown' : quote ? 'stale' : 'unavailable',
+      metricAt: asOf,
+      metricStatus: status,
       buyBps: ref?.status === 'live' ? differenceBps(metric.ask, ref.ask) : null,
       sellBps: ref?.status === 'live' ? differenceBps(metric.bid, ref.bid) : null
     };
@@ -205,8 +204,42 @@ export function poolSummary(row, equity) {
     baseLogo: base.logo ?? tokenLogo(equity?.asset?.logoUrl),
     quoteLogo: quote.logo,
     equity: Boolean(equity),
-    tier: row.tierQualification ?? null
+    tier: row.tierQualification ?? null,
+    volume24h: Number.isFinite(row.volumeByWindow?.['24h']) && row.volumeByWindow['24h'] >= 0
+      ? row.volumeByWindow['24h'] : null
   };
+}
+
+function metricSnapshot(quote, inverted) {
+  const asOf = Number(quote?.serverTs) * 1000;
+  const fresh = Number.isFinite(asOf) && Math.abs(Date.now() - asOf) <= MAX_POOL_AGE;
+  const sides = fresh ? sidePrices(quote, inverted) : { bid: null, ask: null };
+  return {
+    ...sides, fresh, asOf: Number.isFinite(asOf) ? asOf : null,
+    status: fresh ? quote.priceProviderStatus ?? 'unknown' : quote ? 'stale' : 'unavailable'
+  };
+}
+
+export function poolResearch(row, quote, equity, sizes) {
+  const inverted = equity?.inverted ?? false;
+  const { bid, ask, asOf, status } = metricSnapshot(quote, inverted);
+  const mid = midpoint({ bid, ask });
+  return {
+    pool: poolSummary(row, equity),
+    quote: { bid, ask, asOf, status, spreadBps: mid ? (ask - bid) / mid * 10_000 : null },
+    sizes: sizes.map(amount => {
+      const estimate = orderPreview(row, quote, amount, mid, inverted);
+      return { amount,
+        buy: estimate?.buy ? researchSide(estimate.buy, amount) : null,
+        sell: estimate?.sell ? researchSide(estimate.sell, amount / mid) : null
+      };
+    })
+  };
+}
+
+function researchSide(side, input) {
+  return { price: side.price, complete: side.complete,
+    coverage: side.complete ? 100 : Math.min(100, side.paid / input * 100) };
 }
 
 export const feeds = makeFeeds();

@@ -1,4 +1,4 @@
-import { ADDRESS, FeedError, feeds as liveFeeds, poolSummary, poolTokenIcons } from './feeds.js';
+import { ADDRESS, FeedError, feeds as liveFeeds, poolResearch, poolSummary, poolTokenIcons } from './feeds.js';
 import { accept, cancel, createCampaign, detail, HttpError, integer, listCampaigns, propose, sampleDue } from './campaigns.js';
 
 const CAMPAIGN_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -145,6 +145,16 @@ async function handleApi(request, url, env, feeds, trustedOrigin) {
         feeds.pool(chain, address), chain === 4663 ? feeds.assets().catch(() => new Map()) : new Map()
       ]);
       return json({ pool: poolSummary(row, feeds.equityPair(row, catalog)) });
+    }
+    if (method === 'GET' && resource === 'research' && id && action && !extra) {
+      const [chain, address] = poolCoordinates(id, action);
+      const size = integer(Number(url.searchParams.get('size') ?? 5000), 'Order size', 1, 10_000_000);
+      const [row, snapshots, catalog] = await Promise.all([
+        feeds.pool(chain, address), feeds.prices(chain, [address]).catch(() => new Map()),
+        chain === 4663 ? feeds.assets().catch(() => new Map()) : new Map()
+      ]);
+      const sizes = [...new Set([1000, 5000, 10000, size])].sort((a, b) => a - b);
+      return json(poolResearch(row, snapshots.get(address), feeds.equityPair(row, catalog), sizes));
     }
     if (method === 'GET' && resource === 'rwa' && id === 'quotes' && !action) {
       return json({ markets: await feeds.featured() });
