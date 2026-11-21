@@ -58,6 +58,8 @@ img { vertical-align: middle; }
 .topbar nav a.active { border-color: var(--accent); color: var(--ink); }
 .topbar nav a:hover { color: var(--ink); }
 .top-action { justify-self: end; display: inline-grid; place-items: center; min-height: 44px; white-space: nowrap; }
+.wallet-action { justify-self: end; position: relative; }
+.wallet-error { position: absolute; z-index: 4; top: calc(100% + 8px); right: 0; width: min(235px, 65vw); background: var(--surface); border: 1px solid var(--border); padding: 9px 12px; border-radius: 7px; }
 .button { display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; border: 1px solid transparent; line-height: 1.15; font-weight: 650; transition: background .15s, border-color .15s, color .15s; }
 .button { min-height: 44px; padding: 11px 16px; font-size: .91rem; white-space: nowrap; }
 .button.compact { min-height: 38px; padding: 8px 12px; }

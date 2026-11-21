@@ -1,31 +1,55 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useContext, useEffect, useState } from 'react';
+import { WalletContext } from './wallet-state.js';
 
 const apiOrigin = import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '') ?? '';
 
-export async function read(url, options) {
+async function readJson(url, options) {
   const response = await fetch(apiOrigin + url, { credentials: apiOrigin ? 'include' : 'same-origin', ...options });
   const data = await response.json().catch(() => null);
   if (!response.ok || !data) throw new Error(data?.error ?? 'The service is unavailable. Please try again.');
   return data;
 }
 
-export function write(url, payload = {}) {
-  return read(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+const usesSession = url => /^\/api\/(?:session|requests)(?:[/?]|$)/.test(url ?? '');
+
+export function useApi() {
+  const wallet = useContext(WalletContext);
+  const userId = wallet?.id ?? null;
+  const getToken = wallet?.getToken;
+  const read = useCallback(async (url, options) => {
+    if (!userId || !usesSession(url)) return readJson(url, options);
+    const token = await getToken();
+    if (!token) throw new Error('Wallet session expired. Sign in again.');
+    const headers = new Headers(options?.headers);
+    headers.set('Authorization', 'Bearer ' + token);
+    return readJson(url, { ...options, headers });
+  }, [userId, getToken]);
+  return {
+    read, userId, ready: wallet?.ready ?? true,
+    write: (url, payload = {}) => read(url, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    })
+  };
 }
 
 export function useResource(url, interval = 0) {
   const [result, setResult] = useState({});
   const [generation, setGeneration] = useState(0);
+  const api = useApi();
+  const session = usesSession(url);
+  const read = session ? api.read : readJson;
+  const scope = session ? api.userId : null;
+  const ready = !session || api.ready;
   useEffect(() => {
-    if (!url) return;
+    if (!url || !ready) return;
     let pending;
     const update = () => {
       if (pending || document.visibilityState === 'hidden') return;
       const controller = new AbortController();
       pending = controller;
       read(url, { signal: controller.signal }).then(
-        data => { if (!controller.signal.aborted) setResult({ url, generation, data }); },
-        error => { if (!controller.signal.aborted) setResult({ url, generation, error: error.message }); }
+        data => { if (!controller.signal.aborted) setResult({ url, generation, scope, data }); },
+        error => { if (!controller.signal.aborted) setResult({ url, generation, scope, error: error.message }); }
       ).finally(() => { if (pending === controller) pending = null; });
     };
     update();
@@ -36,8 +60,8 @@ export function useResource(url, interval = 0) {
       if (timer) clearInterval(timer);
       document.removeEventListener('visibilitychange', update);
     };
-  }, [url, interval, generation]);
-  const current = result.url === url && result.generation === generation;
+  }, [url, interval, generation, read, scope, ready]);
+  const current = ready && result.url === url && result.generation === generation && result.scope === scope;
   return { ...(current ? result : { loading: Boolean(url) }), reload: () => setGeneration(value => value + 1) };
 }
 

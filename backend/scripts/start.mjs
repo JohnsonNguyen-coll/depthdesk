@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Readable } from 'node:stream';
 import { api } from '../server/handler.js';
+import { createPrivyIdentity } from '../server/privy.js';
 import { feeds } from '../server/feeds.js';
 import { sampleDue } from '../server/campaigns.js';
 import { openDatabase } from './sqlite.mjs';
@@ -20,8 +21,9 @@ await mkdir(dirname(database), { recursive: true });
 const DB = openDatabase(database);
 DB.migrate();
 
+const authenticateWallet = await createPrivyIdentity(process.env.PRIVY_APP_ID?.trim(), process.env.PRIVY_VERIFICATION_KEY);
 const env = {
-  DB,
+  DB, authenticateWallet,
   LOCAL_ACTOR: onRailway ? undefined : { id: 'loopback-owner', name: 'Local workspace' },
   EXTRA_MARKET_CLOSURES: process.env.EXTRA_MARKET_CLOSURES,
   DEPTHDESK_ALLOWED_ORIGINS: process.env.DEPTHDESK_ALLOWED_ORIGINS

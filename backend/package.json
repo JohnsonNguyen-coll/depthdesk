@@ -9,5 +9,8 @@
   "scripts": {
     "start": "node scripts/start.mjs",
     "test": "node --disable-warning=ExperimentalWarning --test"
+  },
+  "dependencies": {
+    "jose": "^6.2.18"
   }
 }

@@ -43,7 +43,7 @@ Campaigns score both directions at the requested size versus the campaign benchm
 - Use `/api/health` as the health check path. The server listens at `0.0.0.0` on the `PORT` Railway injects.
 - Attach a persistent volume at `/data` and set `DEPTHDESK_DB=/data/depthdesk.db`.
 
-Railway serves the public pages and read APIs. Campaign writes require an identity provider integrated with the Railway runtime.
+Railway serves the API. Configure Privy for campaign publishing and curator proposals.
 
 ### Vercel frontend
 
@@ -55,7 +55,15 @@ Set the API public origin in Vercel and the frontend origin in the Railway runti
 - Frontend build — VITE_API_URL=https://depthdesk-api.example.com
 - API runtime — DEPTHDESK_ALLOWED_ORIGINS=https://depthdesk.example.com
 
-Use full origins including the scheme, and separate multiple exact frontend origins with commas. Rebuild the frontend after changing the API URL. Leave these variables unset for same-origin requests. The API supports credentialed CORS for configured origins, and campaign writes still require an authenticated user. Authenticated campaign writes outside Sites require an identity provider.
+Use full origins including the scheme, and separate multiple exact frontend origins with commas. Rebuild the frontend after changing the API URL. Leave these variables unset for same-origin requests. The API supports credentialed CORS for configured origins, and campaign writes still require an authenticated user.
+### Wallet sign-in
+
+Create a Privy app, enable external wallet login, and allow the public frontend domain in the Privy dashboard. Use the same Privy App ID in both deployments.
+
+- Vercel build environment — `VITE_PRIVY_APP_ID` is the Privy App ID.
+- Railway runtime environment — `PRIVY_APP_ID` is the same ID. Set `PRIVY_VERIFICATION_KEY` to the JWT verification public key from Privy App Settings. A multiline PEM or a string with escaped newlines is accepted.
+
+Redeploy Railway and Vercel after setting the variables. The server validates the signed Privy access token against the issuer, app audience, and expiration before using its subject for campaign authorization. Wallet sign-in uses a signature to prove identity. Prices and pool research are available to guests.
 
 ## Commits
 

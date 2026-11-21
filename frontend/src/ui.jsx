@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { WalletContext } from './wallet-state.js';
 
 export const names = { 1: 'Ethereum', 56: 'BNB Chain', 4663: 'Robinhood', 8453: 'Base', 42161: 'Arbitrum' };
 export const money = value => value == null ? '—' : new Intl.NumberFormat('en-US', {
@@ -58,6 +59,10 @@ export function ErrorText({ error }) {
 
 export function SignIn({ children = 'Sign in with ChatGPT' }) {
   const { pathname, search } = useLocation();
+  const wallet = useContext(WalletContext);
+  if (wallet?.id) return <p className="muted" role="status">The API could not verify the wallet session.</p>;
+  if (wallet) return <button className="button primary" type="button" disabled={!wallet.ready} onClick={wallet.signIn}>Connect wallet</button>;
+  if (import.meta.env.VITE_API_URL?.trim()) return <p className="muted">Wallet sign-in is unavailable on this deployment.</p>;
   return <a className="button primary" target="_top"
     href={'/signin-with-chatgpt?return_to=' + encodeURIComponent(pathname + search)}>{children}</a>;
 }

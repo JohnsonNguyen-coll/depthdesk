@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { read, useAction, useResource, write } from './api.js';
+import { useAction, useApi, useResource } from './api.js';
 import { bps, ErrorText, Feedback, money, names, number, PanelHeading, PoolMark, SignIn, Status, timestamp } from './ui.jsx';
 
 const filters = ['all', 'open', 'scheduled', 'active', 'completed', 'cancelled'];
@@ -36,6 +36,7 @@ function CampaignRows({ items }) {
 }
 
 export function RequestBoard() {
+  const { read } = useApi();
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [earlier, setEarlier] = useState([]);
@@ -84,6 +85,7 @@ export function RequestBoard() {
 }
 
 export function RequestForm() {
+  const { write } = useApi();
   const [params] = useSearchParams();
   const [chain, setChain] = useState(params.get('chain') ?? '4663');
   const [address, setAddress] = useState(params.get('pool') ?? '');
@@ -222,6 +224,7 @@ function CampaignReport({ report, target }) {
 }
 
 export function RequestDetail() {
+  const { write } = useApi();
   const { id } = useParams();
   const url = '/api/requests/' + encodeURIComponent(id);
   const { data, error, loading, reload } = useResource(url, 20_000);

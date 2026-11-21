@@ -7,6 +7,7 @@ const headers = { 'cache-control': 'no-store', 'x-content-type-options': 'nosnif
 const json = (value, status = 200) => Response.json(value, { status, headers });
 
 function requestActor(request, env) {
+  if (env.authenticateWallet) return env.authenticateWallet(request);
   if (env.LOCAL_ACTOR) return env.LOCAL_ACTOR;
   // The Sites edge strips visitor-supplied identity headers before injecting authenticated identity.
   const id = request.headers.get('oai-authenticated-user-id');
@@ -103,7 +104,7 @@ export async function api(request, env, feeds = liveFeeds) {
     response.headers.set('Vary', 'Origin, Access-Control-Request-Method');
     if (response.status === 204) {
       response.headers.set('Access-Control-Allow-Methods', 'GET, POST');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+      response.headers.set('Access-Control-Allow-Headers', env.authenticateWallet ? 'Content-Type, Authorization' : 'Content-Type');
     }
   } else {
     response = await handleApi(request, url, env, feeds, sameOrigin || crossOrigin);
@@ -120,8 +121,8 @@ async function handleApi(request, url, env, feeds, trustedOrigin) {
   try {
     const parts = url.pathname.split('/').filter(Boolean).slice(1);
     const { method } = request;
-    const actor = requestActor(request, env);
     const [resource, id, action, extra] = parts;
+    const actor = resource === 'requests' || resource === 'session' ? await requestActor(request, env) : null;
     if (method === 'GET' && !id && resource === 'health') {
       await env.DB.prepare('SELECT id FROM campaigns LIMIT 1').first();
       return json({ status: 'ok' });
