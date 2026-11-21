@@ -19,8 +19,8 @@ function HeroLightning() {
   }, []);
   if (!running) return null;
   return <div className="hero-lightning" aria-hidden="true">
-    <Lightning color="#f7f7f7" bolts={1} xOffset={0.09} branches={0.5}
-      angle={13} size={1.08} thickness={0.67} speed={0.42} intensity={0.92} glow={0.39}
+    <Lightning color="#76aaff" bolts={1} xOffset={0.22} branches={0.61}
+      angle={-29} size={0.83} thickness={0.92} speed={0.45} intensity={0.98} glow={0.63}
       flicker={0.035} mouseInteraction={false} clickStrike={false} intro={false} dpr={1} />
   </div>;
 }
