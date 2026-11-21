@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile } from 'node:fs/promises';
 import { relative, extname, join } from 'node:path';
 import { build } from 'esbuild';
 
@@ -11,11 +11,12 @@ for (const file of await readdir(directory, { recursive: true, withFileTypes: tr
   assets[url] = [extname(path).slice(1), (await readFile(path)).toString('base64')];
 }
 if (!assets['/index.html']) throw new Error('Vite output is missing index.html');
-assets['/licenses/react-bits.txt'] = ['txt', (await readFile('src/vendor/react-bits/LICENSE.md')).toString('base64')];
+assets['/licenses/react-bits.txt'] = ['txt', (await readFile('frontend/src/vendor/react-bits/LICENSE.md')).toString('base64')];
 
 await mkdir('dist/server', { recursive: true });
+await cp('backend/drizzle', 'dist/.openai/drizzle', { recursive: true });
 await build({
-  entryPoints: ['server/worker.js'], bundle: true, format: 'esm', target: 'es2022',
+  entryPoints: ['backend/server/worker.js'], bundle: true, format: 'esm', target: 'es2022',
   outfile: 'dist/server/index.js', legalComments: 'inline',
   plugins: [{
     name: 'static-assets',

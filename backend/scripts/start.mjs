@@ -15,7 +15,7 @@ if (onRailway && (!Number.isInteger(port) || port < 1 || port > 65535)) {
 const host = onRailway ? '0.0.0.0' : '127.0.0.1';
 const railwayOrigin = 'https://' + (process.env.RAILWAY_PUBLIC_DOMAIN || 'localhost');
 const database = process.env.DEPTHDESK_DB ?? '.local/depthdesk.db';
-const apiOnly = process.argv.includes('--api-only');
+const serveFrontend = process.argv.includes('--with-frontend') && !process.argv.includes('--api-only');
 await mkdir(dirname(database), { recursive: true });
 const DB = openDatabase(database);
 DB.migrate();
@@ -26,7 +26,7 @@ const env = {
   EXTRA_MARKET_CLOSURES: process.env.EXTRA_MARKET_CLOSURES,
   DEPTHDESK_ALLOWED_ORIGINS: process.env.DEPTHDESK_ALLOWED_ORIGINS
 };
-const handle = apiOnly ? api : (await import('../dist/server/index.js')).default.fetch;
+const handle = serveFrontend ? (await import('../../dist/server/index.js')).default.fetch : api;
 const localHosts = new Set(['127.0.0.1:' + port, 'localhost:' + port, '127.0.0.1:5173', 'localhost:5173']);
 const app = createServer(async (incoming, outgoing) => {
   try {
@@ -36,6 +36,10 @@ const app = createServer(async (incoming, outgoing) => {
     }
     const origin = onRailway ? railwayOrigin : 'http://' + incoming.headers.host;
     const url = new URL(origin + incoming.url);
+    if (!serveFrontend && !url.pathname.startsWith('/api/')) {
+      outgoing.writeHead(404).end('Not found');
+      return;
+    }
     const headers = new Headers(incoming.headers);
     if (onRailway) {
       // Only the Sites gateway may provide these identity headers.

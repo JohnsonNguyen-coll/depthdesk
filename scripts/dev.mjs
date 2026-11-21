@@ -1,8 +1,9 @@
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const processes = [
-  spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'scripts/local-server.mjs', '--api-only'], { stdio: 'inherit' }),
-  spawn(process.execPath, ['node_modules/vite/bin/vite.js'], { stdio: 'inherit' })
+  spawn(process.execPath, ['--disable-warning=ExperimentalWarning', 'backend/scripts/start.mjs'], { stdio: 'inherit' }),
+  spawn(process.execPath, [fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url))], { cwd: new URL('../frontend/', import.meta.url), stdio: 'inherit' })
 ];
 function stop(code) {
   for (const child of processes) child.kill();

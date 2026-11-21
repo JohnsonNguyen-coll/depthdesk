@@ -2,6 +2,11 @@
 
 An independent community app for commissioning liquidity and inspecting tokenized-equity quotes on Metric.
 
+## Project layout
+
+- `frontend/` contains the Vite and React app.
+- `backend/` contains the Node API, SQLite migrations, collector, and tests.
+
 ## Run locally
 
 Requires Node.js 22.13 or newer.
@@ -23,7 +28,7 @@ The built application runs at `http://127.0.0.1:8787`. `DEPTHDESK_PORT`, `DEPTHD
 
 ## Deployment
 
-The build emits a self-contained Worker at `dist/server/index.js`. On Sites, connect the `DB` D1 binding, apply the SQL migrations under `drizzle/`, and preserve the Sites identity gateway. The gateway must strip visitor-supplied `oai-authenticated-user-*` headers before it adds verified identity headers. The loopback development server uses a fixed local identity.
+The build emits a self-contained Worker at `dist/server/index.js`. On Sites, connect the `DB` D1 binding, apply the SQL migrations under `backend/drizzle/`, and preserve the Sites identity gateway. The gateway must strip visitor-supplied `oai-authenticated-user-*` headers before it adds verified identity headers. The loopback development server uses a fixed local identity.
 
 Configure a Worker Cron Trigger every minute to run the exported `scheduled` handler for unattended measurements. If the host provides an external job runner, set `DEPTHDESK_JOB_TOKEN` as a runtime secret and send a bearer-authenticated `POST` to `/api/jobs/sample` every minute. A private Site also requires platform service access. The local runtime starts the collector automatically. Multiple invocations are safe because each campaign has a unique five-minute measurement slot.
 
@@ -33,13 +38,19 @@ Campaigns score both directions at the requested size versus the campaign benchm
 
 ### Railway
 
-Use Node.js 22.13 or newer, build with npm run build, and start with npm start. On Railway, the server listens at 0.0.0.0 on the injected PORT. Use /api/health for the health check. Attach a persistent volume at /data and set DEPTHDESK_DB=/data/depthdesk.db.
+- Set the service root directory to `/backend` and use Node.js 22.13 or newer.
+- Use `npm start` as the start command. Clear any custom build command for this API-only service.
+- Use `/api/health` as the health check path. The server listens at `0.0.0.0` on the `PORT` Railway injects.
+- Attach a persistent volume at `/data` and set `DEPTHDESK_DB=/data/depthdesk.db`.
 
 Railway serves the public pages and read APIs. Campaign writes require an identity provider integrated with the Railway runtime.
 
-### Separate frontend and API
+### Vercel frontend
 
-For a static frontend on a different origin, set the API's public origin as a frontend build variable. Set the frontend origin in the API service's runtime variables.
+- Set the root directory to `frontend` and choose the Vite preset.
+- Use `npm run build` as the build command and `dist` as the output directory. Enable access to source files outside the root directory for the repository lockfile.
+
+Set the API public origin in Vercel and the frontend origin in the Railway runtime variables.
 
 - Frontend build — VITE_API_URL=https://depthdesk-api.example.com
 - API runtime — DEPTHDESK_ALLOWED_ORIGINS=https://depthdesk.example.com
@@ -58,5 +69,5 @@ Use Conventional Commits in English. Favor one intent per commit.
 
 ## Credits
 
-- The landing page uses [Lightning by React Bits](https://reactbits.dev/backgrounds/lightning). The upstream license is retained in [src/vendor/react-bits/LICENSE.md](src/vendor/react-bits/LICENSE.md).
+- The landing page uses [Lightning by React Bits](https://reactbits.dev/backgrounds/lightning). The upstream license is retained in [React Bits license](frontend/src/vendor/react-bits/LICENSE.md).
 - The visual references were the [Awesome Design MD](https://github.com/VoltAgent/awesome-design-md) dark UI analyses for Linear and Kraken.
