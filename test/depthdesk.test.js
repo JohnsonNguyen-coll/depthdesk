@@ -70,6 +70,26 @@ test('distinguishes unavailable observations from insufficient depth', () => {
   assert.equal(thin.outcome, 'fail');
 });
 
+test('answers CORS preflight only for a configured origin and supported method', async () => {
+  const frontend = 'https://depthdesk.example';
+  const url = 'https://api.depthdesk.example/api/requests';
+  const env = { DEPTHDESK_ALLOWED_ORIGINS: ' https://preview.depthdesk.example, ' + frontend + '/ ' };
+  const preflight = (origin, method = 'POST') => api(new Request(url, {
+    method: 'OPTIONS',
+    headers: { origin, 'access-control-request-method': method, 'access-control-request-headers': 'content-type' }
+  }), env);
+
+  const allowed = await preflight(frontend);
+  assert.equal(allowed.status, 204);
+  assert.equal(allowed.headers.get('access-control-allow-origin'), frontend);
+  assert.equal(allowed.headers.get('access-control-allow-credentials'), 'true');
+  assert.equal(allowed.headers.get('access-control-allow-headers'), 'Content-Type');
+  for (const refused of [await preflight(frontend + '.example'), await preflight('null'), await preflight(frontend, 'DELETE')]) {
+    assert.equal(refused.status, 403);
+    assert.equal(refused.headers.get('access-control-allow-origin'), null);
+  }
+});
+
 test('enforces ownership and origin, accepts an offer once, and retains observations', async () => {
   const DB = openDatabase();
   DB.migrate();
@@ -82,16 +102,23 @@ test('enforces ownership and origin, accepts an offer once, and retains observat
     })
   };
   const base = 'https://depthdesk.example';
+  const frontend = 'https://frontend.depthdesk.example';
   const act = (path, actor, body, origin = base) => api(new Request(base + '/api' + path, {
     method: body ? 'POST' : 'GET',
     headers: { 'content-type': 'application/json', origin, ...(actor ? { 'oai-authenticated-user-id': actor } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {})
-  }), { DB }, feeds);
+  }), { DB, DEPTHDESK_ALLOWED_ORIGINS: frontend }, feeds);
   try {
     assert.equal((await act('/requests', null, campaignInput)).status, 401);
-    assert.equal((await act('/requests', 'sponsor', campaignInput, 'https://wrong.example')).status, 403);
-    const created = await act('/requests', 'sponsor', campaignInput);
+    const unauthenticated = await act('/requests', null, campaignInput, frontend);
+    assert.equal(unauthenticated.status, 401);
+    assert.equal(unauthenticated.headers.get('access-control-allow-origin'), frontend);
+    const refused = await act('/requests', 'sponsor', campaignInput, 'https://wrong.example');
+    assert.equal(refused.status, 403);
+    assert.equal(refused.headers.get('access-control-allow-origin'), null);
+    const created = await act('/requests', 'sponsor', campaignInput, frontend);
     assert.equal(created.status, 201);
+    assert.equal(created.headers.get('access-control-allow-origin'), frontend);
     const campaign = await created.json();
     const detail = '/requests/' + campaign.id;
     const offer = { amountCents: 36000, notes: 'We will maintain measurable two-sided liquidity.' };

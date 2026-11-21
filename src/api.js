@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 
+const apiOrigin = import.meta.env.VITE_API_URL?.trim().replace(/\/+$/, '') ?? '';
+
 export async function read(url, options) {
-  const response = await fetch(url, options);
+  const response = await fetch(apiOrigin + url, { credentials: apiOrigin ? 'include' : 'same-origin', ...options });
   const data = await response.json().catch(() => null);
   if (!response.ok || !data) throw new Error(data?.error ?? 'The service is unavailable. Please try again.');
   return data;

@@ -47,9 +47,9 @@ async function input(request) {
   }
 }
 
-function permitWrite(request, url, actor) {
+function permitWrite(actor, trustedOrigin) {
   if (!actor) throw new HttpError(401, 'Sign in to continue.');
-  if (request.headers.get('origin') !== url.origin) throw new HttpError(403, 'This request must come from DepthDesk.');
+  if (!trustedOrigin) throw new HttpError(403, 'This request must come from DepthDesk.');
 }
 
 function poolCoordinates(chainId, address) {
@@ -90,8 +90,34 @@ async function isJob(request, env) {
 }
 
 export async function api(request, env, feeds = liveFeeds) {
+  const url = new URL(request.url);
+  const origin = request.headers.get('origin');
+  const sameOrigin = origin === url.origin;
+  const allowedOrigins = (env.DEPTHDESK_ALLOWED_ORIGINS ?? '').split(',').map(value => value.trim().replace(/\/$/, ''));
+  const crossOrigin = origin && origin !== 'null' && !sameOrigin && allowedOrigins.includes(origin);
+  const requestedMethod = request.headers.get('access-control-request-method');
+  const preflight = request.method === 'OPTIONS' && origin && requestedMethod;
+  let response;
+  if (preflight) {
+    response = new Response(null, { status: crossOrigin && ['GET', 'POST'].includes(requestedMethod) ? 204 : 403 });
+    response.headers.set('Vary', 'Origin, Access-Control-Request-Method');
+    if (response.status === 204) {
+      response.headers.set('Access-Control-Allow-Methods', 'GET, POST');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type');
+    }
+  } else {
+    response = await handleApi(request, url, env, feeds, sameOrigin || crossOrigin);
+    if (env.DEPTHDESK_ALLOWED_ORIGINS) response.headers.append('Vary', 'Origin');
+  }
+  if (crossOrigin && (!preflight || response.status === 204)) {
+    response.headers.set('Access-Control-Allow-Origin', origin);
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+  }
+  return response;
+}
+
+async function handleApi(request, url, env, feeds, trustedOrigin) {
   try {
-    const url = new URL(request.url);
     const parts = url.pathname.split('/').filter(Boolean).slice(1);
     const { method } = request;
     const actor = requestActor(request, env);
@@ -145,11 +171,11 @@ export async function api(request, env, feeds = liveFeeds) {
       }
       if (method === 'GET' && CAMPAIGN_ID.test(id) && !action) return json(await detail(db, actor, id));
       if (method === 'POST' && !id) {
-        permitWrite(request, url, actor);
+        permitWrite(actor, trustedOrigin);
         return json(await createCampaign(db, actor, await input(request), feeds), 201);
       }
       if (method === 'POST' && CAMPAIGN_ID.test(id) && ['proposals', 'accept', 'cancel'].includes(action)) {
-        permitWrite(request, url, actor);
+        permitWrite(actor, trustedOrigin);
         if (action === 'cancel') await cancel(db, actor, id);
         if (action === 'proposals') await propose(db, actor, id, await input(request));
         if (action === 'accept') await accept(db, actor, id, await input(request), env);

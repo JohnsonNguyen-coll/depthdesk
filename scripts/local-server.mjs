@@ -16,7 +16,8 @@ DB.migrate();
 
 const env = {
   DB, LOCAL_ACTOR: { id: 'loopback-owner', name: 'Local workspace' },
-  EXTRA_MARKET_CLOSURES: process.env.EXTRA_MARKET_CLOSURES
+  EXTRA_MARKET_CLOSURES: process.env.EXTRA_MARKET_CLOSURES,
+  DEPTHDESK_ALLOWED_ORIGINS: process.env.DEPTHDESK_ALLOWED_ORIGINS
 };
 const handle = apiOnly ? api : (await import('../dist/server/index.js')).default.fetch;
 const localHosts = new Set(['127.0.0.1:' + port, 'localhost:' + port, '127.0.0.1:5173', 'localhost:5173']);

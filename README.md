@@ -31,6 +31,15 @@ Public Metric catalog and quote reads do not require a Metric API key. Equity co
 
 Campaigns score both directions at the requested size versus the campaign benchmark. The final-bin fill is a conservative proportional estimate based on quoted depth. The schedule includes missed observations in the denominator. Sponsors and curators arrange payment privately.
 
+### Separate frontend and API
+
+For a static frontend on a different origin, set the API's public origin as a frontend build variable. Set the frontend origin in the API service's runtime variables.
+
+- Frontend build — VITE_API_URL=https://depthdesk-api.example.com
+- API runtime — DEPTHDESK_ALLOWED_ORIGINS=https://depthdesk.example.com
+
+Use full origins including the scheme, and separate multiple exact frontend origins with commas. Rebuild the frontend after changing the API URL. Leave these variables unset for same-origin requests. The API supports credentialed CORS for configured origins, and campaign writes still require an authenticated user. Deploying outside Sites requires a production identity provider and server entrypoint.
+
 ## Commits
 
 Use Conventional Commits in English. Favor one intent per commit.
