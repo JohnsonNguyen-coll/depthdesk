@@ -1,5 +1,5 @@
 import { api } from './handler.js';
-import { sampleDue } from './campaigns.js';
+import { collectDepth } from './audit.js';
 import { feeds } from './feeds.js';
 import { assets } from './built-assets.js';
 
@@ -26,6 +26,6 @@ export default {
     } });
   },
   async scheduled(_event, env) {
-    return sampleDue(env.DB, feeds);
+    return collectDepth(env, feeds);
   }
 };

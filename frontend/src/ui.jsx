@@ -23,7 +23,7 @@ export function Brand() {
 
 export function Status({ value }) {
   const label = ({ active: 'Measuring', completed: 'Completed', scheduled: 'Scheduled', open: 'Open',
-    cancelled: 'Cancelled', live: 'Live', stale: 'Stale', unavailable: 'Unavailable', halted: 'Trading halt' })[value] ?? value;
+    cancelled: 'Cancelled', live: 'Live', stale: 'Stale', unavailable: 'Unavailable', halted: 'Trading halt', closed: 'Market closed' })[value] ?? value;
   return <span className={'status status-' + value}>{label}</span>;
 }
 

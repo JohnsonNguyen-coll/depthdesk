@@ -1,5 +1,6 @@
 import { ADDRESS, FeedError, feeds as liveFeeds, poolResearch, poolSummary, poolTokenIcons } from './feeds.js';
-import { accept, cancel, createCampaign, detail, HttpError, integer, listCampaigns, propose, sampleDue } from './campaigns.js';
+import { accept, cancel, createCampaign, detail, HttpError, integer, listCampaigns, propose } from './campaigns.js';
+import { collectDepth, readDepthAudit } from './audit.js';
 
 const CAMPAIGN_ID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
 const MAX_BODY = 16_384;
@@ -158,7 +159,7 @@ async function handleApi(request, url, env, feeds, trustedOrigin) {
       return json(poolResearch(row, snapshots.get(address), feeds.equityPair(row, catalog), sizes));
     }
     if (method === 'GET' && resource === 'rwa' && id === 'quotes' && !action) {
-      return json({ markets: await feeds.featured() });
+      return json({ markets: await feeds.featured({ extraClosures: env.EXTRA_MARKET_CLOSURES }) });
     }
     if (method === 'GET' && resource === 'rwa' && id && action && !extra) {
       const [chain, address] = poolCoordinates(id, action);
@@ -168,11 +169,12 @@ async function handleApi(request, url, env, feeds, trustedOrigin) {
       ]);
       const equity = feeds.equityPair(row, catalog);
       if (!equity) throw new HttpError(404, 'This pool has no verified equity mapping.');
-      return json({ ...poolSummary(row, equity), size, score: await feeds.readPool(row, snapshots.get(address), equity, size) });
+      return json({ ...poolSummary(row, equity), size, score: await feeds.readPool(row, snapshots.get(address), equity, size, { extraClosures: env.EXTRA_MARKET_CLOSURES }) });
     }
+    if (method === 'GET' && resource === 'depth-audit' && !id) return json(await readDepthAudit(env.DB));
     if (method === 'POST' && resource === 'jobs' && id === 'sample' && !action) {
       if (!await isJob(request, env)) throw new HttpError(401, 'Collector authentication required.');
-      return json(await sampleDue(env.DB, feeds));
+      return json(await collectDepth(env, feeds));
     }
     if (resource === 'requests' && !extra) {
       const db = env.DB;

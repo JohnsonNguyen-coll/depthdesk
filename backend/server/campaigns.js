@@ -72,14 +72,21 @@ export async function createCampaign(db, actor, body, feeds) {
   const row = await feeds.pool(chain, body.address);
   const catalog = chain === 4663 ? await feeds.assets() : new Map();
   const equity = feeds.equityPair(row, catalog);
-  if (schedule === 'market_open' && !equity) throw new HttpError(400, 'Market open is available for verified Robinhood equity pools.');
+  const benchmark = body.benchmark ?? (equity ? 'equity' : 'pool');
+  if (!['equity', 'pool'].includes(benchmark)) throw new HttpError(400, 'Choose a supported benchmark.');
+  if ((benchmark === 'equity' || schedule === 'market_open') && !equity) {
+    throw new HttpError(400, 'The stock benchmark and market-open window require a verified Robinhood equity pool.');
+  }
+  if (benchmark === 'equity' && schedule !== 'market_open') {
+    throw new HttpError(400, 'Use the market-open window with the independent stock benchmark.');
+  }
   const pool = poolSummary(row, equity);
   const id = crypto.randomUUID();
   const result = await db.prepare(
     'INSERT INTO campaigns (id,sponsor_id,sponsor_name,title,description,chain_id,pool_address,pair,base_symbol,quote_symbol,benchmark,schedule,periods,order_size,max_bps,target_pct,budget_cents,created_at) ' +
     'SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE (SELECT count(*) FROM campaigns WHERE sponsor_id = ? AND status = ?) < 20'
   ).bind(id, actor.id, actor.name, title, description, chain, pool.address, pool.pair, pool.base, pool.quote,
-    equity ? 'equity' : 'pool', schedule, periods, size, maxBps, target, budget, Date.now(), actor.id, 'open').run();
+    benchmark, schedule, periods, size, maxBps, target, budget, Date.now(), actor.id, 'open').run();
   if (!result.meta.changes) throw new HttpError(409, 'Close an open request before creating another.');
   return campaignView(await requiredCampaign(db, id), actor);
 }
@@ -168,11 +175,13 @@ export async function cancel(db, actor, id) {
 
 export function scoreObservation(snapshot, limit) {
   const { preview, midpoint: mid, metricStatus, reference } = snapshot;
+  const benchmark = snapshot.benchmark ?? (reference ? 'equity' : 'pool');
+  const comparable = benchmark === 'pool' || reference?.status === 'live';
   const buyBps = differenceBps(preview?.buy?.price, mid);
   const sellBps = differenceBps(preview?.sell?.price, mid);
   let outcome = 'unavailable';
-  let reason = 'Benchmark or quote unavailable';
-  if (snapshot.metricAt && !['stale', 'unavailable'].includes(metricStatus) && (!reference || reference.status === 'live')) {
+  let reason = benchmark === 'equity' && reference?.status === 'closed' ? 'U.S. regular session closed' : 'Benchmark or quote unavailable';
+  if (snapshot.metricAt && mid && preview && !['stale', 'unavailable'].includes(metricStatus) && comparable) {
     if (!preview?.buy?.complete || !preview?.sell?.complete) {
       outcome = 'fail';
       reason = 'Insufficient quoted depth';
@@ -181,10 +190,14 @@ export function scoreObservation(snapshot, limit) {
       reason = outcome === 'pass' ? 'Both sides meet target' : 'Price tolerance exceeded';
     }
   }
-  return { outcome, reason, buyBps, sellBps, benchmarkPrice: mid, buyPrice: preview?.buy?.price ?? null, sellPrice: preview?.sell?.price ?? null };
+  return {
+    outcome, reason, buyBps, sellBps, benchmarkPrice: mid,
+    buyPrice: preview?.buy?.price ?? null, sellPrice: preview?.sell?.price ?? null,
+    referenceMidBps: snapshot.referenceMidBps ?? null, referenceStatus: reference?.status ?? null
+  };
 }
 
-export async function sampleDue(db, feeds, now = Date.now()) {
+export async function sampleDue(db, feeds, now = Date.now(), extraClosures) {
   const slotAt = Math.floor(now / SAMPLE_MS) * SAMPLE_MS;
   const pending = (await db.prepare(
     "SELECT c.* FROM campaigns c JOIN campaign_windows w ON w.campaign_id = c.id WHERE c.status = 'active' AND w.starts_at <= ? AND w.ends_at > ? " +
@@ -193,7 +206,7 @@ export async function sampleDue(db, feeds, now = Date.now()) {
   let recorded = 0;
   for (let index = 0; index < pending.length; index += 2) {
     const group = await Promise.all(pending.slice(index, index + 2).map(async row => {
-      const reading = await observe(row, feeds);
+      const reading = await observeCampaign(row, feeds, extraClosures);
       const observed = Date.now();
       if (observed >= slotAt + SAMPLE_MS) return 0;
       const result = await db.prepare(
@@ -207,15 +220,16 @@ export async function sampleDue(db, feeds, now = Date.now()) {
   return { slotAt, recorded };
 }
 
-async function observe(row, feeds) {
+export async function observeCampaign(row, feeds, extraClosures) {
   try {
     const [pool, quotes, catalog] = await Promise.all([
       feeds.pool(row.chain_id, row.pool_address), feeds.prices(row.chain_id, [row.pool_address]),
-      row.benchmark === 'equity' ? feeds.assets() : new Map()
+      row.chain_id === 4663 ? feeds.assets().catch(() => new Map()) : new Map()
     ]);
-    const equity = row.benchmark === 'equity' ? feeds.equityPair(pool, catalog) : null;
+    const equity = feeds.equityPair(pool, catalog);
     if (row.benchmark === 'equity' && !equity) return { outcome: 'unavailable', reason: 'Token mapping unavailable' };
-    const snapshot = await feeds.readPool(pool, quotes.get(row.pool_address.toLowerCase()), equity, row.order_size);
+    const snapshot = await feeds.readPool(pool, quotes.get(row.pool_address.toLowerCase()), equity, row.order_size,
+      { benchmark: row.benchmark, extraClosures });
     return scoreObservation(snapshot, row.max_bps);
   } catch {
     return { outcome: 'unavailable', reason: 'Unable to read market data' };

@@ -2,6 +2,7 @@
   "version": "7",
   "dialect": "sqlite",
   "entries": [
-    { "idx": 0, "version": "6", "when": 1795190400000, "tag": "0001_campaigns", "breakpoints": true }
+    { "idx": 0, "version": "6", "when": 1795190400000, "tag": "0001_campaigns", "breakpoints": true },
+    { "idx": 1, "version": "6", "when": 1795305600000, "tag": "0002_depth_audit", "breakpoints": true }
   ]
 }

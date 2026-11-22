@@ -32,9 +32,15 @@ The build emits a self-contained Worker at `dist/server/index.js`. On Sites, con
 
 Configure a Worker Cron Trigger every minute to run the exported `scheduled` handler for unattended measurements. If the host provides an external job runner, set `DEPTHDESK_JOB_TOKEN` as a runtime secret and send a bearer-authenticated `POST` to `/api/jobs/sample` every minute. A private Site also requires platform service access. The local runtime starts the collector automatically. Multiple invocations are safe because each campaign has a unique five-minute measurement slot.
 
-Public Metric catalog and quote reads do not require a Metric API key. Equity comparisons use Robinhood's stock quotes and the issuer's shares-per-token multiplier. Metric provides the USD conversion for the quote currency. Confirm the reference-data display terms for your audience before granting public access.
+Public Metric catalog and quote reads do not require a Metric API key. Equity comparisons use Robinhood's stock quotes and the issuer's shares-per-token multiplier. They use the regular U.S. equity session and hide the stock quote and difference outside that session. Metric provides the USD conversion for the quote currency. Confirm the reference-data display terms for your audience before granting public access.
 
-Campaigns score both directions at the requested size versus the campaign benchmark. The final-bin fill is a conservative proportional estimate based on quoted depth. The schedule includes missed observations in the denominator. Sponsors and curators arrange payment privately.
+Campaigns score both directions at the requested size versus the campaign benchmark. Verified equity pools default to an independent Robinhood stock midpoint during the market-open measurement window. A pool midpoint instead measures depth relative to the pool’s own quote. The report keeps the pool-to-stock midpoint difference separate.
+
+Depth estimates use one Metric snapshot and show the actual estimated quantity and bins used at each requested size. A proportional last-bin fill is a conservative depth estimate.
+
+The public depth audit at `/depth-audit` collects real META/USDG observations every five minutes using the same measurement code. It stores up to two days of observations and reports the most recent 24 hours. The audit tracks depth versus the pool midpoint and shows independent stock alignment when available.
+
+For sponsored campaigns, the schedule includes missed observations in the denominator. Sponsors and curators arrange payment privately.
 
 ### Railway
 

@@ -3,9 +3,10 @@ import test from 'node:test';
 import { api } from '../server/handler.js';
 import { openDatabase } from '../scripts/sqlite.mjs';
 import { midpoint, orderPreview, sidePrices, toAtomic } from '../server/math.js';
-import { campaignWindows, SAMPLE_MS } from '../server/schedule.js';
+import { campaignWindows, regularEquitySession, SAMPLE_MS } from '../server/schedule.js';
 import { sampleDue, scoreObservation } from '../server/campaigns.js';
-import { poolSummary } from '../server/feeds.js';
+import { makeFeeds, poolSummary } from '../server/feeds.js';
+import { readDepthAudit, sampleDepthAudit } from '../server/audit.js';
 
 const address = '0x0000000000000000000000000000000000000012';
 const pool = {
@@ -45,6 +46,8 @@ test('keeps the official icons aligned with the base and quote on inverted pools
 
 test('handles asymmetric depth, sentinel prices, and decimal scales', () => {
   assert.deepEqual(sidePrices(quote), { bid: 99, ask: 101 });
+  assert.equal(toAtomic(1e21, 6), 10n ** 27n);
+  assert.equal(toAtomic(Infinity, 6), 0n);
   assert.deepEqual(sidePrices({ ...quote, bidAdj: '0' }, true), { bid: 1 / 101, ask: null });
   assert.equal(midpoint(sidePrices(quote)), 100);
   const depth = orderPreview(pool, quote, 5000, 100);
@@ -70,6 +73,91 @@ test('distinguishes unavailable observations from insufficient depth', () => {
   assert.equal(thin.outcome, 'fail');
 });
 
+test('only compares U.S. stock prices during the regular session, including early closes', async () => {
+  const at = iso => Date.parse(iso);
+  assert.equal(regularEquitySession(at('2026-11-22T17:00:00Z')), false);
+  assert.equal(regularEquitySession(at('2026-11-23T14:29:00Z')), false);
+  assert.equal(regularEquitySession(at('2026-11-23T14:30:00Z')), true);
+  assert.equal(regularEquitySession(at('2026-11-26T17:00:00Z')), false);
+  assert.equal(regularEquitySession(at('2026-11-27T17:59:00Z')), true);
+  assert.equal(regularEquitySession(at('2026-11-27T18:00:00Z')), false);
+  assert.equal(regularEquitySession(at('2026-06-24T13:30:00Z')), true);
+  assert.equal(regularEquitySession(at('2026-06-24T13:30:00Z'), '2026-06-24'), false);
+
+  let calls = 0;
+  let quoteTime = '2026-11-23T15:00:00Z';
+  const feed = makeFeeds(async () => {
+    calls += 1;
+    return Response.json({ quotes: [{ tokenSymbol: 'NVDA', bid: '84.95', ask: '85.05', currency: 'USD', generatedAt: quoteTime }] });
+  });
+  const equity = { inverted: false, quoteUsd: 1, asset: { tokenSymbol: 'NVDA', currentMultiplier: '1' } };
+  const fresh = ms => ({ ...quote, serverTs: ms / 1000, priceProviderStatus: 'healthy' });
+  const weekend = at('2026-11-22T17:00:00Z');
+  const closed = await feed.readPool(pool, fresh(weekend), equity, 1000, { at: weekend });
+  assert.equal(calls, 0);
+  assert.equal(closed.reference.status, 'closed');
+  assert.equal(closed.referenceMidBps, null);
+  assert.equal(closed.buyBps, null);
+  assert.ok(closed.preview.buy.complete);
+  assert.equal(scoreObservation(closed, 150).outcome, 'unavailable');
+
+  const open = at(quoteTime);
+  const independent = await feed.readPool(pool, fresh(open), equity, 1000, { at: open });
+  const relative = await feed.readPool(pool, fresh(open), equity, 1000, { at: open, benchmark: 'pool' });
+  assert.equal(calls, 1);
+  assert.deepEqual(independent.preview, relative.preview);
+  assert.equal(scoreObservation(relative, 150).outcome, 'pass');
+  assert.equal(scoreObservation(independent, 150).outcome, 'fail');
+  assert.equal(independent.referenceMidBps, 1764.71);
+
+  quoteTime = '2026-11-23T14:29:59Z';
+  const opening = at('2026-11-23T14:30:15Z');
+  const openingFeed = makeFeeds(async () => Response.json({ quotes: [{ tokenSymbol: 'NVDA', bid: '84.95', ask: '85.05', currency: 'USD', generatedAt: quoteTime }] }));
+  const stale = await openingFeed.readPool(pool, fresh(opening), equity, 1000, { at: opening });
+  assert.equal(stale.reference.status, 'stale');
+});
+
+test('estimates distinct amounts in a shared bin and changes price when a larger size crosses bins', () => {
+  const depth = { ...quote, depth: { ...quote.depth, asks: [
+    { cumulativeInputVolume: '6000000000', cumulativeVolume: toAtomic(60, 18).toString() },
+    { cumulativeInputVolume: '16000000000', cumulativeVolume: toAtomic(140, 18).toString() }
+  ] } };
+  const estimates = [1000, 5000, 10000].map(size => orderPreview(pool, depth, size, 100));
+  assert.deepEqual(estimates.map(item => item.buy.paid), [1000, 5000, 10000]);
+  assert.deepEqual(estimates.map(item => item.buy.received), [10, 50, 92]);
+  assert.deepEqual(estimates.map(item => item.buy.bins), [1, 1, 2]);
+  assert.equal(estimates[0].buy.price, estimates[1].buy.price);
+  assert.ok(estimates[2].buy.price > estimates[1].buy.price);
+});
+
+test('records and exposes actual audit observations without listing a fabricated campaign', async () => {
+  const DB = openDatabase();
+  DB.migrate();
+  const now = Math.floor(Date.now() / SAMPLE_MS) * SAMPLE_MS;
+  const read = (benchmark, timestamp) => ({
+    metricAt: timestamp, metricStatus: 'healthy', midpoint: 100, benchmark, reference: { status: 'closed' },
+    preview: { buy: { complete: true, price: 100.05 }, sell: { complete: true, price: 99.95 } }
+  });
+  const feeds = {
+    pool: async () => pool, prices: async () => new Map(), assets: async () => new Map(), equityPair: () => ({}),
+    readPool: async (_pool, _quote, _pair, _size, { benchmark }) => read(benchmark, now)
+  };
+  try {
+    const initial = await readDepthAudit(DB, now);
+    assert.equal(initial.report.samples.length, 0);
+    assert.deepEqual((await Promise.all([sampleDepthAudit(DB, feeds, '', () => now), sampleDepthAudit(DB, feeds, '', () => now)])).sort(), [0, 1]);
+    const report = await readDepthAudit(DB, now + 2 * SAMPLE_MS);
+    assert.equal(report.report.pass, 1);
+    assert.equal(report.report.missing, 1);
+    assert.equal(report.report.passRate, 50);
+    assert.equal(report.report.samples[0].referenceStatus, 'closed');
+    const response = await api(new Request('https://depthdesk.example/api/depth-audit'), { DB }, feeds);
+    assert.equal(response.status, 200);
+    const campaigns = await api(new Request('https://depthdesk.example/api/requests'), { DB }, feeds);
+    assert.deepEqual((await campaigns.json()).campaigns, []);
+  } finally { DB.close(); }
+});
+
 test('builds pool research from a fresh depth snapshot and omits stale estimates', async () => {
   const url = 'https://depthdesk.example/api/research/4663/' + address + '?size=30000';
   const pathQuote = { ...quote, serverTs: Date.now() / 1000, priceProviderStatus: 'healthy' };
@@ -86,6 +174,8 @@ test('builds pool research from a fresh depth snapshot and omits stale estimates
   assert.equal(research.quote.spreadBps, 200);
   assert.deepEqual(research.sizes.map(level => level.amount), [1000, 5000, 10000, 30000]);
   assert.equal(research.sizes[0].buy.coverage, 100);
+  assert.equal(research.sizes[0].buy.paid, 1000);
+  assert.equal(research.sizes[0].buy.bins, 1);
   assert.equal(research.sizes[0].sell.complete, true);
   assert.equal(research.sizes.at(-1).buy.complete, false);
   assert.ok(research.sizes.at(-1).buy.coverage > 0 && research.sizes.at(-1).buy.coverage < 100);
@@ -144,7 +234,8 @@ test('enforces ownership and origin, accepts an offer once, and retains observat
     const refused = await act('/requests', 'sponsor', campaignInput, 'https://wrong.example');
     assert.equal(refused.status, 403);
     assert.equal(refused.headers.get('access-control-allow-origin'), null);
-    const created = await act('/requests', 'sponsor', campaignInput, frontend);
+    assert.equal((await act('/requests', 'sponsor', { ...campaignInput, schedule: 'continuous', benchmark: 'equity' }, frontend)).status, 400);
+    const created = await act('/requests', 'sponsor', { ...campaignInput, benchmark: 'equity' }, frontend);
     assert.equal(created.status, 201);
     assert.equal(created.headers.get('access-control-allow-origin'), frontend);
     const campaign = await created.json();

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { CampaignReport } from './campaign-report.jsx';
 import { useAction, useApi, useResource } from './api.js';
-import { bps, ErrorText, Feedback, money, names, number, PanelHeading, PoolMark, SignIn, Status, timestamp } from './ui.jsx';
+import { ErrorText, Feedback, money, names, number, PanelHeading, PoolMark, SignIn, Status, timestamp } from './ui.jsx';
 
 const filters = ['all', 'open', 'scheduled', 'active', 'completed', 'cancelled'];
 const filtersLabel = { all: 'All requests', open: 'Open', scheduled: 'Scheduled', active: 'Measuring', completed: 'Completed', cancelled: 'Cancelled' };
@@ -62,6 +63,10 @@ export function RequestBoard() {
       <Link className="button primary" to="/requests/new">Create request</Link>
     </div>
     <section className="panel board" aria-label="Market requests">
+      <div className="audit-banner">
+        <div><strong>Live depth audit</strong><p className="muted">See how a real Metric pool is measured at a fixed order size.</p></div>
+        <Link className="text-link" to="/depth-audit">Open audit report</Link>
+      </div>
       <div className="toolbar">
         <div className="segmented" aria-label="Request status">
           {filters.map(value => <button key={value} type="button" aria-pressed={value === filter}
@@ -90,6 +95,7 @@ export function RequestForm() {
   const [chain, setChain] = useState(params.get('chain') ?? '4663');
   const [address, setAddress] = useState(params.get('pool') ?? '');
   const [schedule, setSchedule] = useState('continuous');
+  const [selectedBenchmark, setBenchmark] = useState(null);
   const [offset, setOffset] = useState(0);
   const [mode, setMode] = useState(params.has('pool') ? 'address' : 'catalog');
   const [validated, setValidated] = useState(params.get('pool') ?? '');
@@ -101,7 +107,8 @@ export function RequestForm() {
   const navigate = useNavigate();
   const chosen = pool.data?.pool ?? pools.data?.pools?.find(item => item.address === address);
   const choices = chains.data?.chains ?? [];
-  const marketOpen = schedule === 'market_open' && chosen?.equity;
+  const benchmark = chosen?.equity ? selectedBenchmark ?? 'equity' : 'pool';
+  const marketOpen = chosen?.equity && (benchmark === 'equity' || schedule === 'market_open');
   const user = session.data?.user;
 
   function chooseNetwork(event) {
@@ -110,12 +117,14 @@ export function RequestForm() {
     setValidated('');
     setOffset(0);
     setSchedule('continuous');
+    setBenchmark(null);
   }
 
   function setPool(value) {
     setAddress(value);
     setValidated(mode === 'catalog' ? value : '');
     setSchedule('continuous');
+    setBenchmark(null);
   }
 
   function submit(event) {
@@ -124,7 +133,7 @@ export function RequestForm() {
     return action.submit(async () => {
       const created = await write('/api/requests', {
         title: form.get('title'), description: form.get('description'), chainId: Number(chain),
-        address: chosen.address, schedule: marketOpen ? 'market_open' : 'continuous',
+        address: chosen.address, benchmark, schedule: marketOpen ? 'market_open' : 'continuous',
         periods: Number(form.get('periods')), size: Number(form.get('size')), maxBps: Number(form.get('maxBps')),
         target: Number(form.get('target')), budgetCents: usdCents(form.get('budget'))
       });
@@ -166,8 +175,12 @@ export function RequestForm() {
             </div>}
           </div>
           <ErrorText error={pool.error ?? pools.error} />
+          <label className="field full">Benchmark<select value={benchmark} onChange={event => setBenchmark(event.target.value)}>
+            {chosen?.equity && <option value="equity">Robinhood stock midpoint · independent price reference</option>}
+            <option value="pool">Metric pool midpoint · depth and spread</option>
+          </select></label>
           <label className="field">Measurement window<select value={marketOpen ? 'market_open' : 'continuous'} onChange={event => setSchedule(event.target.value)}>
-            <option value="continuous">Continuous</option><option value="market_open" disabled={!chosen?.equity}>U.S. market open</option>
+            <option value="continuous" disabled={benchmark === 'equity'}>Continuous</option><option value="market_open" disabled={!chosen?.equity}>U.S. market open</option>
           </select></label>
           <label className="field">Duration ({marketOpen ? 'sessions' : 'days'})<input name="periods" type="number" min="1" max="14" defaultValue="7" required /></label>
           <label className="field">Order size ({chosen?.quote ?? 'quote token'})<input name="size" type="number" min="1" max="10000000"
@@ -187,7 +200,7 @@ export function RequestForm() {
         <div className="panel-body summary-content">
           <div className="summary-pair"><PoolMark pool={chosen} /><div><strong>{chosen?.pair ?? 'Select a pool'}</strong>
             <small>{chosen?.chain ?? names[chain] ?? 'Metric'}</small></div></div>
-          <dl><div><dt>Benchmark</dt><dd>{chosen?.equity ? 'Robinhood stock quote, adjusted for token units' : 'Metric pool bid/ask midpoint'}</dd></div>
+          <dl><div><dt>Benchmark</dt><dd>{benchmark === 'equity' ? 'Robinhood stock midpoint, adjusted for token units' : 'Metric pool midpoint measures depth relative to the pool’s own price'}</dd></div>
             <div><dt>Schedule</dt><dd>{marketOpen ? 'First 30 minutes of each U.S. equity session' : 'Every five minutes after acceptance'}</dd></div></dl>
           <p>{FIELD_HELP}</p>
           <p>The budget sets the maximum offer. The sponsor and curator arrange payment directly.</p>
@@ -195,32 +208,6 @@ export function RequestForm() {
       </aside>
     </div>
   </div>;
-}
-
-function CampaignReport({ report, target }) {
-  if (!report.planned) return null;
-  return <section className="panel report">
-    <PanelHeading title="Campaign report" trailing={<span className="muted numeric">{report.elapsed} / {report.planned} scheduled checks</span>} />
-    <div className="report-stats">
-      <div><span>Pass rate</span><strong>{report.passRate == null ? '—' : number(report.passRate, 1) + '%'}</strong><small>Target {target}%</small></div>
-      <div><span>Passed</span><strong className="data-accent">{report.pass}</strong></div>
-      <div><span>Failed</span><strong>{report.fail}</strong></div>
-      <div><span>Unavailable</span><strong>{report.unavailable + report.missing}</strong><small>{report.missing} missed checks</small></div>
-    </div>
-    {report.elapsed > 0 && <div className="report-progress" role="img"
-      aria-label={report.pass + ' passed, ' + report.fail + ' failed, ' + (report.unavailable + report.missing) + ' unavailable'}>
-      {[['pass', report.pass], ['fail', report.fail], ['missing', report.missing + report.unavailable]].map(([state, count]) =>
-        <span key={state} className={'report-segment ' + state} style={{ width: count / report.elapsed * 100 + '%' }} />)}
-    </div>}
-    <p className="panel-note">Pass rate uses all elapsed checks. Each observation uses quoted depth for the requested size.</p>
-    {report.samples.length > 0 && <div className="table-scroll">
-      <table className="list-table sample-table"><thead><tr><th>Observed</th><th>Buy vs. mid</th><th>Sell vs. mid</th><th>Result</th></tr></thead>
-        <tbody>{report.samples.map(sample => <tr key={sample.slotAt}><th scope="row">{timestamp(sample.observedAt)}</th>
-          <td className="numeric">{bps(sample.buyBps)}</td><td className="numeric">{bps(sample.sellBps)}</td>
-          <td className={sample.outcome === 'pass' ? 'data-accent' : 'muted'}>{sample.reason}</td></tr>)}</tbody>
-      </table>
-    </div>}
-  </section>;
 }
 
 export function RequestDetail() {
@@ -255,7 +242,8 @@ export function RequestDetail() {
           <div className="stack">
             <section className="panel"><PanelHeading title="Requirements" />
               <p className="panel-body body-copy">{data.description}</p></section>
-            <CampaignReport report={data.report} target={data.target} />
+            <CampaignReport report={data.report} target={data.target} benchmark={data.benchmark}
+              showReference={data.benchmark === 'equity' || data.report.samples.some(sample => sample.referenceStatus)} />
             <section className="panel">
               <PanelHeading title={'Proposals (' + data.proposalCount + ')'} />
               <div className="panel-body stack small-stack">
@@ -290,7 +278,7 @@ export function RequestDetail() {
               <dl>
                 <div><dt>Order size per side</dt><dd>{number(data.size, 0)} {data.quote}</dd></div>
                 <div><dt>Price tolerance</dt><dd>±{data.maxBps} bps</dd></div><div><dt>Target pass rate</dt><dd>{data.target}%</dd></div>
-                <div><dt>Benchmark</dt><dd>{data.benchmark === 'equity' ? 'Adjusted Robinhood stock midpoint' : 'Metric pool midpoint'}</dd></div>
+                <div><dt>Benchmark</dt><dd>{data.benchmark === 'equity' ? 'Adjusted Robinhood stock midpoint' : 'Metric pool midpoint · depth and spread'}</dd></div>
                 <div><dt>Schedule</dt><dd>{data.periods} {data.schedule === 'market_open' ? 'market opens' : 'days'}</dd></div>
                 {data.startsAt && <div><dt>First check</dt><dd>{timestamp(data.startsAt)}</dd></div>}
               </dl>

@@ -144,7 +144,7 @@ tbody th { font-weight: 650; }
 .table-link:hover { color: var(--accent); }
 .status { color: var(--muted); white-space: nowrap; font-weight: 560; font-size: .825rem; }
 .status-live, .status-active, .status-open { color: var(--accent-hover); }
-.status-stale, .status-scheduled { color: var(--warning); }
+.status-stale, .status-scheduled, .status-closed { color: var(--warning); }
 .status-halted, .status-cancelled { color: var(--danger); }
 .feedback { min-height: 126px; padding: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: var(--muted); text-align: center; line-height: 1.5; font-size: .9rem; }
 .feedback-empty { min-height: 210px; }
@@ -181,6 +181,10 @@ dd { margin: 0; text-align: right; }
 .proposal > div { display: flex; justify-content: space-between; gap: 12px; }
 .proposal .button, .offer-form .button { justify-self: start; }
 .proposal p { color: var(--muted); }
+.audit-banner { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 20px; border-block: 1px solid var(--border); padding: 17px 0; margin-bottom: 18px; }
+.audit-banner p, .audit-toolbar p { margin-top: 5px; font-size: .875rem; line-height: 1.5; }
+.audit-explanation { display: grid; gap: 6px; margin-block: 18px 26px; color: var(--muted); font-size: .875rem; line-height: 1.55; }
+.report-benchmark { margin-top: 14px; font-size: .875rem; color: var(--muted); }
 .report-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 11px; padding-block: 16px; }
 .report-stats > div { display: grid; gap: 3px; align-content: start; font-size: .875rem; }
 .report-stats strong { font: 650 clamp(22px, 3vw, 34px) var(--display); }

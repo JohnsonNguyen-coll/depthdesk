@@ -20,7 +20,8 @@ export function midpoint({ bid, ask }) {
 }
 
 export function toAtomic(value, decimals) {
-  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36 || !(value > 0)) return 0n;
+  if (!Number.isInteger(decimals) || decimals < 0 || decimals > 36 || !Number.isFinite(value) || value <= 0) return 0n;
+  if (value >= 1e21) return BigInt(value) * 10n ** BigInt(decimals);
   const [whole, fractional = ''] = value.toFixed(Math.min(decimals, 12)).split('.');
   return BigInt(whole + fractional.padEnd(decimals, '0'));
 }

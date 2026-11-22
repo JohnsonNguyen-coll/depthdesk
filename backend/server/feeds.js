@@ -1,4 +1,5 @@
 import { differenceBps, midpoint, orderPreview, sidePrices } from './math.js';
+import { regularEquitySession } from './schedule.js';
 
 const METRIC = 'https://api.metric.xyz/public/v1';
 const ROBINHOOD = 'https://api.robinhood.com/rhj';
@@ -107,7 +108,8 @@ export function makeFeeds(fetchRequest = fetch) {
     return asset ? { asset, inverted, quoteUsd: Number(inverted ? row.token0FiatPrice : row.token1FiatPrice) } : null;
   }
 
-  async function reference(pair) {
+  async function reference(pair, at, extraClosures) {
+    if (!regularEquitySession(at, extraClosures)) return { status: 'closed' };
     if (!pair || !(pair.quoteUsd > 0)) return { status: 'unavailable' };
     const { asset, quoteUsd } = pair;
     const data = await read(ROBINHOOD + '/prices/' + encodeURIComponent(asset.tokenSymbol), 15_000);
@@ -119,8 +121,8 @@ export function makeFeeds(fetchRequest = fetch) {
       multiplier = Number(asset.pendingMultiplier);
     }
     const base = { asOf: Number.isFinite(asOf) ? asOf : null, multiplier: multiplier > 0 ? multiplier : null, quoteUsd };
+    if (!regularEquitySession(asOf, extraClosures) || Math.abs(at - asOf) > MAX_REFERENCE_AGE) return { ...base, status: 'stale' };
     if (snapshot.isTradingHalt) return { ...base, status: 'halted' };
-    if (!(asOf > 0 && Math.abs(Date.now() - asOf) <= MAX_REFERENCE_AGE)) return { ...base, status: 'stale' };
     const stock = { bid: Number(snapshot.bid), ask: Number(snapshot.ask) };
     if (!(multiplier > 0) || !midpoint(stock)) return { ...base, status: 'unavailable' };
     return {
@@ -130,16 +132,18 @@ export function makeFeeds(fetchRequest = fetch) {
     };
   }
 
-  async function readPool(row, quote, pair, size = null) {
+  async function readPool(row, quote, pair, size = null, { at = Date.now(), extraClosures, benchmark = pair ? 'equity' : 'pool' } = {}) {
     const inverted = pair?.inverted ?? false;
-    const { bid, ask, asOf, status, fresh } = metricSnapshot(quote, inverted);
+    const { bid, ask, asOf, status } = metricSnapshot(quote, inverted, at);
     const metric = { bid, ask };
-    const ref = pair ? await reference(pair).catch(() => ({ status: 'unavailable' })) : null;
-    const benchmark = pair ? (ref.status === 'live' ? ref : null) : metric;
-    const mid = benchmark ? midpoint(benchmark) : null;
-    const preview = size && fresh ? orderPreview(row, quote, size, mid, inverted) : null;
+    const poolMidpoint = midpoint(metric);
+    const ref = pair ? await reference(pair, at, extraClosures).catch(() => ({ status: 'unavailable' })) : null;
+    const stockMidpoint = ref?.status === 'live' ? midpoint(ref) : null;
+    const mid = benchmark === 'equity' ? stockMidpoint : poolMidpoint;
+    const preview = size ? orderPreview(row, quote, size, poolMidpoint, inverted) : null;
     return {
-      metric, reference: ref, midpoint: mid, preview,
+      metric, reference: ref, midpoint: mid, benchmark, preview,
+      referenceMidBps: differenceBps(poolMidpoint, stockMidpoint),
       metricAt: asOf,
       metricStatus: status,
       buyBps: ref?.status === 'live' ? differenceBps(metric.ask, ref.ask) : null,
@@ -147,7 +151,7 @@ export function makeFeeds(fetchRequest = fetch) {
     };
   }
 
-  async function featured() {
+  async function featured(options) {
     const [catalog, inventory] = await Promise.all([assets(), pools(ROBINHOOD_CHAIN)]);
     const matches = FEATURED.flatMap(symbol => {
       const row = inventory.rows.find(item => equityPair(item, catalog)?.asset.tokenSymbol === symbol);
@@ -162,7 +166,7 @@ export function makeFeeds(fetchRequest = fetch) {
         return {
           ...poolSummary(row, pair),
           name: pair.asset.tokenName,
-          score: await readPool(row, latest.get(row.poolAddress.toLowerCase()), pair)
+          score: await readPool(row, latest.get(row.poolAddress.toLowerCase()), pair, null, options)
         };
       })));
     }
@@ -210,9 +214,9 @@ export function poolSummary(row, equity) {
   };
 }
 
-function metricSnapshot(quote, inverted) {
+function metricSnapshot(quote, inverted, at = Date.now()) {
   const asOf = Number(quote?.serverTs) * 1000;
-  const fresh = Number.isFinite(asOf) && Math.abs(Date.now() - asOf) <= MAX_POOL_AGE;
+  const fresh = Number.isFinite(asOf) && Math.abs(at - asOf) <= MAX_POOL_AGE;
   const sides = fresh ? sidePrices(quote, inverted) : { bid: null, ask: null };
   return {
     ...sides, fresh, asOf: Number.isFinite(asOf) ? asOf : null,
@@ -238,7 +242,7 @@ export function poolResearch(row, quote, equity, sizes) {
 }
 
 function researchSide(side, input) {
-  return { price: side.price, complete: side.complete,
+  return { price: side.price, complete: side.complete, bins: side.bins, paid: side.paid, received: side.received,
     coverage: side.complete ? 100 : Math.min(100, side.paid / input * 100) };
 }
 

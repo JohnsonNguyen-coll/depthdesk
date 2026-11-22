@@ -8,6 +8,7 @@ import Landing from './landing.jsx';
 import { Brand } from './ui.jsx';
 import { RequestBoard, RequestDetail, RequestForm } from './requests.jsx';
 import QuoteMonitor from './quotes.jsx';
+import DepthAudit from './depth-audit.jsx';
 import { WalletContext, walletAppId } from './wallet-state.js';
 
 const WalletProvider = walletAppId ? lazy(() => import('./wallet.jsx')) : null;
@@ -29,7 +30,7 @@ function App() {
   const wallet = useContext(WalletContext);
   useEffect(() => {
     window.scrollTo(0, 0);
-    const section = pathname.startsWith('/rwa') ? 'RWA Quotes' : pathname.startsWith('/requests') ? 'Market Requests' : '';
+    const section = pathname === '/depth-audit' ? 'Live Depth Audit' : pathname.startsWith('/rwa') ? 'RWA Quotes' : pathname.startsWith('/requests') ? 'Market Requests' : '';
     document.title = section ? section + ' | DepthDesk' : 'DepthDesk';
   }, [pathname]);
   return <>
@@ -50,6 +51,7 @@ function App() {
         <Route path="/requests/new" element={<RequestForm />} />
         <Route path="/requests/:id" element={<RequestDetail />} />
         <Route path="/rwa" element={<QuoteMonitor />} />
+        <Route path="/depth-audit" element={<DepthAudit />} />
         <Route path="*" element={<div className="wrap page"><h1>Page not found</h1><Link className="button primary" to="/">Home</Link></div>} />
       </Routes>
     </main>

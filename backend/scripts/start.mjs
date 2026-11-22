@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { api } from '../server/handler.js';
 import { createPrivyIdentity } from '../server/privy.js';
 import { feeds } from '../server/feeds.js';
-import { sampleDue } from '../server/campaigns.js';
+import { collectDepth } from '../server/audit.js';
 import { openDatabase } from './sqlite.mjs';
 
 const onRailway = Boolean(process.env.RAILWAY_ENVIRONMENT_ID);
@@ -69,7 +69,7 @@ let running = false;
 const timer = setInterval(async () => {
   if (running) return;
   running = true;
-  try { await sampleDue(DB, feeds); } catch (error) { console.error('Collector failed', error.message); }
+  try { await collectDepth(env, feeds); } catch (error) { console.error('Collector failed', error.message); }
   finally { running = false; }
 }, 15_000);
 

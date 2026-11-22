@@ -121,6 +121,7 @@
 .depth-current > th { color: var(--accent-hover); }
 .depth-cell { display: flex; justify-content: space-between; gap: 3px 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .depth-cell span:last-child { font-size: .75rem; white-space: nowrap; }
+.depth-quantity { display: block; margin-top: 5px; color: var(--muted); font-size: .75rem; font-variant-numeric: tabular-nums; }
 .depth-track { margin-top: 6px; height: 3px; background: #273346; border-radius: 3px; }
 .depth-track > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
 .depth-table td:last-child .depth-track > span { background: #83cfc6; }

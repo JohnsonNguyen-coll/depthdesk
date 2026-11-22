@@ -68,7 +68,7 @@ function RecentRequests() {
       <div><h2 id="overview-requests-title">Liquidity requests</h2>
         <p>Set an order size and price tolerance, select a curator, and measure the pool against your target.</p>
       </div>
-      <Link className="text-link" to="/requests">View request board</Link>
+      <Link className="text-link" to="/depth-audit">See live depth audit</Link>
     </header>
     <Feedback loading={result.loading} error={result.error} retry={result.reload} empty={!campaigns.length && 'No liquidity requests have been posted yet.'}>
       <ul className="overview-requests">

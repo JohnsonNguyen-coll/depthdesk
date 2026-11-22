@@ -8,7 +8,7 @@ const DEFAULT_SIZE = 5000;
 const ADDRESS = /^0x[a-f\d]{40}$/i;
 const compact = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 2 });
 
-function DepthCell({ side }) {
+function DepthCell({ side, base, buy = false }) {
   if (!side) return <td className="muted">—</td>;
   return <td>
     <div className="depth-cell">
@@ -16,6 +16,7 @@ function DepthCell({ side }) {
       <span className={side.complete ? 'data-accent' : 'muted'}>{number(Math.floor(side.coverage), 0)}% covered</span>
     </div>
     <div className="depth-track" aria-hidden="true"><span style={{ width: side.coverage + '%' }} /></div>
+    <small className="depth-quantity">{number(buy ? side.received : side.paid, 8)} {base} · {side.bins} {side.bins === 1 ? 'bin' : 'bins'}</small>
   </td>;
 }
 
@@ -53,13 +54,13 @@ function DepthStudy({ chainId, address }) {
           <thead><tr><th>Size ({pool.quote})</th><th>Buy estimate</th><th>Sell estimate</th></tr></thead>
           <tbody>{sizes.map(item => <tr className={item.amount === size ? 'depth-current' : ''} key={item.amount}>
             <th scope="row">{number(item.amount, 0)}</th>
-            <DepthCell side={item.buy} />
-            <DepthCell side={item.sell} />
+            <DepthCell side={item.buy} base={pool.base} buy />
+            <DepthCell side={item.sell} base={pool.base} />
           </tr>)}</tbody>
         </table>
       </div>
       <p className="research-note">
-        {hasQuote ? 'Prices in ' + pool.quote + ' per ' + pool.base + '. Coverage uses quoted depth at the same snapshot.'
+        {hasQuote ? 'Prices in ' + pool.quote + ' per ' + pool.base + '. Sizes can share a price when they fit in the same bin.'
           : quote.status === 'stale' ? 'The latest Metric quote is stale.' : 'A current Metric quote is unavailable.'}
         {quote.asOf && <span>Snapshot {timestamp(quote.asOf)}</span>}
       </p>
