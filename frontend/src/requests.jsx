@@ -9,6 +9,10 @@ const filtersLabel = { all: 'All requests', open: 'Open', scheduled: 'Scheduled'
 const shortAddress = value => value.slice(0, 6) + '…' + value.slice(-4);
 const usdCents = value => Math.round(Number(value) * 100);
 const FIELD_HELP = 'Fill the target order size in both directions within the price tolerance.';
+const draftAmount = (params, name, min, max) => {
+  const value = params.get(name);
+  return value?.trim() && Number(value) >= min && Number(value) <= max ? value : undefined;
+};
 
 const campaignPoolId = item => item.chainId + ':' + item.address.toLowerCase();
 
@@ -29,24 +33,29 @@ function CampaignRows({ items }) {
   const icons = useCampaignIcons(items);
   return items.map(item => <tr key={item.id}>
     <th scope="row"><Link to={'/requests/' + item.id} className="table-link">
-      <PoolMark pool={campaignWithIcons(item, icons)} /><span>{item.title}<small>{item.pair} · {item.sponsor}</small></span>
+      <PoolMark pool={campaignWithIcons(item, icons)} /><span>{item.title}<small>{item.pair} · {item.sponsor}</small>
+        <small className="request-mobile-meta">{names[item.chainId] ?? item.chainId} · {number(item.size, 0)} {item.quote} per side</small></span>
     </Link></th>
-    <td>{names[item.chainId] ?? item.chainId}</td><td className="numeric">{number(item.size, 0)} {item.quote}</td>
+    <td className="request-wide">{names[item.chainId] ?? item.chainId}</td><td className="numeric request-wide">{number(item.size, 0)} {item.quote}</td>
     <td className="numeric">{money(item.budget)}</td><td><Status value={item.status} /></td>
   </tr>);
 }
 
 export function RequestBoard() {
   const { read } = useApi();
+  const [params, setParams] = useSearchParams();
+  const mine = params.get('scope') === 'mine';
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [earlier, setEarlier] = useState([]);
   const [cursor, setCursor] = useState(null);
   const { data, loading, error, reload } = useResource('/api/requests', 30_000);
+  const session = useResource('/api/session');
   const next = cursor ?? data?.nextBefore;
   const pagination = useAction();
   const campaigns = [...(data?.campaigns ?? []), ...earlier];
   const visible = [...new Map(campaigns.map(item => [item.id, item])).values()].filter(item =>
+    (!mine || item.mine) &&
     (filter === 'all' || filter === item.status) &&
     (item.title + ' ' + item.pair + ' ' + item.sponsor).toLowerCase().includes(search.trim().toLowerCase()));
   const groups = [];
@@ -62,23 +71,29 @@ export function RequestBoard() {
         <p>Find campaigns to curate, or commission liquidity for a Metric pool.</p></div>
       <Link className="button primary" to="/requests/new">Create request</Link>
     </div>
-    <section className="panel board" aria-label="Market requests">
-      <div className="audit-banner">
-        <div><strong>Live depth audit</strong><p className="muted">See how a real Metric pool is measured at a fixed order size.</p></div>
-        <Link className="button secondary" to="/depth-audit">Open audit report</Link>
-      </div>
+    <section className="panel board surface-panel request-board" aria-label="Market requests">
       <div className="toolbar">
-        <div className="segmented" aria-label="Request status">
-          {filters.map(value => <button key={value} type="button" aria-pressed={value === filter}
-            onClick={() => setFilter(value)}>{filtersLabel[value]}</button>)}
+        <div className="button-row request-scope" role="group" aria-label="Request visibility">
+          <button className="button secondary" type="button" aria-pressed={!mine} onClick={() => setParams({}, { replace: true })}>All requests</button>
+          <button className="button secondary" type="button" aria-pressed={mine}
+            onClick={() => setParams({ scope: 'mine' }, { replace: true })}>My requests</button>
         </div>
         <label className="search-field"><input aria-label="Search requests" placeholder="Search requests" value={search} onChange={event => setSearch(event.target.value)} /></label>
       </div>
-      <Feedback loading={loading} error={error} retry={reload}
-        empty={!visible.length && (campaigns.length ? 'No requests match these filters.' : 'No liquidity requests have been posted yet.')}>
-        {!visible.length ? (!campaigns.length && <Link className="button secondary" to="/requests/new">Create the first request</Link>) :
+      <div className="request-filter-bar">
+        <div className="segmented" role="group" aria-label="Request status">
+          {filters.map(value => <button key={value} type="button" aria-pressed={value === filter}
+            onClick={() => setFilter(value)}>{value === 'all' ? 'All statuses' : filtersLabel[value]}</button>)}
+        </div>
+      </div>
+      <Feedback loading={loading || (mine && session.loading)} error={error ?? (mine ? session.error : null)}
+        retry={() => { reload(); if (mine) session.reload(); }}
+        empty={!visible.length && (mine && !session.data?.user ? 'Connect your account to view your requests.'
+          : campaigns.length ? 'No requests match these filters.' : 'No liquidity requests have been posted yet.')}>
+        {!visible.length ? (mine && !session.data?.user ? <SignIn />
+          : !campaigns.length && <Link className="button secondary" to="/requests/new">Create the first request</Link>) :
           <div className="table-scroll"><table className="list-table">
-            <thead><tr><th>Request</th><th>Network</th><th>Order size</th><th>Budget</th><th>Status</th></tr></thead>
+            <thead><tr><th>Request</th><th className="request-wide">Network</th><th className="request-wide">Order size</th><th>Budget</th><th>Status</th></tr></thead>
             <tbody>{groups.map(items => <CampaignRows key={items[0].id} items={items} />)}</tbody>
           </table></div>}
       </Feedback>
@@ -86,6 +101,10 @@ export function RequestBoard() {
       {Boolean(next) && <div className="panel-footer"><button type="button" onClick={loadEarlier}
         disabled={pagination.saving} className="button secondary">Load more requests</button></div>}
     </section>
+    <div className="audit-banner requests-audit">
+      <div><strong>Live depth audit</strong><p className="muted">Review five-minute observations for a real Metric pool.</p></div>
+      <Link className="button secondary" to="/depth-audit">Open audit report</Link>
+    </div>
   </div>;
 }
 
@@ -94,6 +113,7 @@ export function RequestForm() {
   const [params] = useSearchParams();
   const [chain, setChain] = useState(params.get('chain') ?? '4663');
   const [address, setAddress] = useState(params.get('pool') ?? '');
+  const [periods, setPeriods] = useState(draftAmount(params, 'periods', 1, 14));
   const [schedule, setSchedule] = useState('continuous');
   const [selectedBenchmark, setBenchmark] = useState(null);
   const [offset, setOffset] = useState(0);
@@ -142,22 +162,23 @@ export function RequestForm() {
   }
 
   return <div className="wrap page">
-    <Link className="back-link" to="/requests">Market requests</Link>
+    <Link className="button secondary request-back" to="/requests">Back to requests</Link>
     <div className="page-heading">
       <h1>Create request</h1><p>Give curators a target they can price and a result you can measure.</p></div>
     <div className="detail-layout">
-      <form className="panel form-panel" onSubmit={submit}>
+      <form className="panel surface-panel form-panel" onSubmit={submit}>
         <PanelHeading title="Campaign terms" />
         <div className="panel-body form-grid">
-          <label className="field full">Request title<input name="title" minLength={6} maxLength={90} required placeholder="e.g. Two-sided liquidity for NVDA" /></label>
+          <label className="field full">Request title<input name="title" minLength={6} maxLength={90} required
+            defaultValue={params.get('title')?.slice(0, 90)} placeholder="e.g. Two-sided liquidity for NVDA" /></label>
           <label className="field full">Requirements<textarea name="description" minLength={15} maxLength={2000} rows={4} required
-            placeholder="What should the curator maintain? Include any execution or reporting requirements." /></label>
+            defaultValue={params.get('requirements')?.slice(0, 2000)} placeholder="What should the curator maintain? Include any execution or reporting requirements." /></label>
           <label className="field">Network<select value={chain} onChange={chooseNetwork}>
             {!choices.some(option => String(option.id) === chain) && <option value={chain}>{names[chain] ?? 'Chain ' + chain}</option>}
-            {choices.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
+            {choices.map(option => <option key={option.id} value={option.id}>{names[option.id] ?? option.name}</option>)}
           </select></label>
           <div className="field">
-            <div className="field-label"><label htmlFor="pool-picker">Metric pool</label><button type="button" className="text-link"
+            <div className="field-label"><label htmlFor="pool-picker">Metric pool</label><button type="button" className="button secondary compact"
               onClick={() => { setMode(value => value === 'catalog' ? 'address' : 'catalog'); setAddress(''); setValidated(''); setOffset(0); }}>
               {mode === 'catalog' ? 'Enter address' : 'Browse pools'}
             </button></div>
@@ -170,8 +191,8 @@ export function RequestForm() {
                 <button type="button" className="button secondary compact" disabled={!/^0x[0-9a-f]{40}$/i.test(address) || pool.loading}
                   onClick={() => { setValidated(address); pool.reload(); }}>Verify</button></div>}
             {mode === 'catalog' && Boolean(pools.data?.nextOffset || offset) && <div className="pagination">
-              {offset > 0 && <button type="button" className="text-link" onClick={() => { setOffset(Math.max(0, offset - 100)); setPool(''); }}>Previous pools</button>}
-              {pools.data?.nextOffset && <button type="button" className="text-link" onClick={() => { setOffset(pools.data.nextOffset); setPool(''); }}>More pools</button>}
+              {offset > 0 && <button type="button" className="button secondary compact" onClick={() => { setOffset(Math.max(0, offset - 100)); setPool(''); }}>Previous pools</button>}
+              {pools.data?.nextOffset && <button type="button" className="button secondary compact" onClick={() => { setOffset(pools.data.nextOffset); setPool(''); }}>More pools</button>}
             </div>}
           </div>
           <ErrorText error={pool.error ?? pools.error} />
@@ -182,12 +203,16 @@ export function RequestForm() {
           <label className="field">Measurement window<select value={marketOpen ? 'market_open' : 'continuous'} onChange={event => setSchedule(event.target.value)}>
             <option value="continuous" disabled={benchmark === 'equity'}>Continuous</option><option value="market_open" disabled={!chosen?.equity}>U.S. market open</option>
           </select></label>
-          <label className="field">Duration ({marketOpen ? 'sessions' : 'days'})<input name="periods" type="number" min="1" max="14" defaultValue="7" required /></label>
+          <label className="field">Duration ({marketOpen ? 'sessions' : 'days'})<input name="periods" type="number" min="1" max="14"
+            value={periods ?? (marketOpen ? 5 : 7)} onChange={event => setPeriods(event.target.value)} required /></label>
           <label className="field">Order size ({chosen?.quote ?? 'quote token'})<input name="size" type="number" min="1" max="10000000"
-            defaultValue={params.get('size') ?? '5000'} required /></label>
-          <label className="field">Price tolerance (bps)<input name="maxBps" type="number" min="1" max="2000" defaultValue="50" required /></label>
-          <label className="field">Target pass rate (%)<input name="target" type="number" min="1" max="100" defaultValue="95" required /></label>
-          <label className="field">Maximum budget (USD)<input name="budget" type="number" min="0.01" max="1000000" step="0.01" placeholder="0.00" required /></label>
+            defaultValue={draftAmount(params, 'size', 1, 10_000_000) ?? '5000'} required /></label>
+          <label className="field">Price tolerance (bps)<input name="maxBps" type="number" min="1" max="2000"
+            defaultValue={draftAmount(params, 'bps', 1, 2000) ?? '50'} required /></label>
+          <label className="field">Target pass rate (%)<input name="target" type="number" min="1" max="100"
+            defaultValue={draftAmount(params, 'target', 1, 100) ?? '95'} required /></label>
+          <label className="field">Maximum budget (USD)<input name="budget" type="number" min="0.01" max="1000000" step="0.01"
+            defaultValue={draftAmount(params, 'budget', 0.01, 1_000_000)} placeholder="0.00" required /></label>
         </div>
         <div className="panel-footer form-actions">
           <ErrorText error={action.error ?? session.error} />
@@ -195,13 +220,14 @@ export function RequestForm() {
             : !session.loading && !session.error && <SignIn>Sign in to publish</SignIn>}
         </div>
       </form>
-      <aside className="panel summary-panel">
+      <aside className="panel surface-panel summary-panel">
         <PanelHeading title="Measurement" />
         <div className="panel-body summary-content">
           <div className="summary-pair"><PoolMark pool={chosen} /><div><strong>{chosen?.pair ?? 'Select a pool'}</strong>
             <small>{chosen?.chain ?? names[chain] ?? 'Metric'}</small></div></div>
           <dl><div><dt>Benchmark</dt><dd>{benchmark === 'equity' ? 'Robinhood stock midpoint, adjusted for token units' : 'Metric pool midpoint measures depth relative to the pool’s own price'}</dd></div>
-            <div><dt>Schedule</dt><dd>{marketOpen ? 'First 30 minutes of each U.S. equity session' : 'Every five minutes after acceptance'}</dd></div></dl>
+            <div><dt>Schedule</dt><dd>{marketOpen ? 'Every five minutes in the first 30 minutes of each U.S. equity session' : 'Every five minutes after acceptance'}</dd></div>
+            <div><dt>Duration</dt><dd>{periods === '' ? '—' : (periods ?? (marketOpen ? 5 : 7)) + (marketOpen ? ' market opens' : ' days')}</dd></div></dl>
           <p>{FIELD_HELP}</p>
           <p>The budget sets the maximum offer. The sponsor and curator arrange payment directly.</p>
         </div>
@@ -248,11 +274,11 @@ export function RequestDetail() {
         <div className="toast" role="status">{copied}</div>
         <div className="detail-layout">
           <div className="stack">
-            <section className="panel"><PanelHeading title="Requirements" />
+            <section className="panel surface-panel"><PanelHeading title="Requirements" />
               <p className="panel-body body-copy">{data.description}</p></section>
             <CampaignReport report={data.report} target={data.target} benchmark={data.benchmark}
               showReference={data.benchmark === 'equity' || data.report.samples.some(sample => sample.referenceStatus)} />
-            <section className="panel">
+            <section className="panel surface-panel">
               <PanelHeading title={'Proposals (' + data.proposalCount + ')'} />
               <div className="panel-body stack small-stack">
                 <ErrorText error={action.error} />
@@ -279,7 +305,7 @@ export function RequestDetail() {
               </div>
             </section>
           </div>
-          <aside className="panel summary-panel">
+          <aside className="panel surface-panel summary-panel">
             <PanelHeading title="Campaign target" />
             <div className="panel-body summary-content">
               <div className="big-amount"><small>Sponsor budget</small><strong>{money(data.budget)}</strong></div>

@@ -9,18 +9,18 @@ import { Brand } from './ui.jsx';
 import { RequestBoard, RequestDetail, RequestForm } from './requests.jsx';
 import QuoteMonitor from './quotes.jsx';
 import DepthAudit from './depth-audit.jsx';
+import DepthLab from './pool-research.jsx';
+import AccountMenu from './account-menu.jsx';
 import { WalletContext, walletAppId } from './wallet-state.js';
 
 const WalletProvider = walletAppId ? lazy(() => import('./wallet.jsx')) : null;
 
 function HeaderAction() {
   const wallet = useContext(WalletContext);
-  if (!wallet) return <Link className="text-link top-action" to="/requests/new">New request</Link>;
-  const account = wallet.address ? wallet.address.slice(0, 6) + '…' + wallet.address.slice(-4) : 'Signed in';
+  if (!wallet) return <Link className="button secondary top-action" to="/requests/new">New request</Link>;
   return <div className="wallet-action">
-    {wallet.id ? <button className="button secondary compact" type="button" onClick={wallet.signOut}
-      aria-label={'Sign out of ' + (wallet.address ?? 'DepthDesk')}>{account} · Sign out</button>
-      : <button className="button primary compact" type="button" disabled={!wallet.ready} onClick={wallet.signIn}>Connect wallet</button>}
+    {wallet.id ? <AccountMenu key={wallet.id} wallet={wallet} />
+      : <button className="button primary" type="button" disabled={!wallet.ready} onClick={wallet.signIn}>Connect wallet</button>}
     {wallet.error && <p role="alert" className="wallet-error error">{wallet.error}</p>}
   </div>;
 }
@@ -30,7 +30,8 @@ function App() {
   const wallet = useContext(WalletContext);
   useEffect(() => {
     window.scrollTo(0, 0);
-    const section = pathname === '/depth-audit' ? 'Live Depth Audit' : pathname.startsWith('/rwa') ? 'RWA Quotes' : pathname.startsWith('/requests') ? 'Market Requests' : '';
+    const section = pathname === '/depth-audit' ? 'Live Depth Audit' : pathname === '/depth-lab' ? 'Depth Lab'
+      : pathname.startsWith('/rwa') ? 'RWA Quotes' : pathname.startsWith('/requests') ? 'Market Requests' : '';
     document.title = section ? section + ' | DepthDesk' : 'DepthDesk';
   }, [pathname]);
   return <>
@@ -40,6 +41,7 @@ function App() {
       <nav aria-label="Main navigation">
         <NavLink to="/" end>Overview</NavLink>
         <NavLink to="/requests">Requests</NavLink>
+        <NavLink to="/depth-lab">Depth Lab</NavLink>
         <NavLink to="/rwa">RWA Quotes</NavLink>
       </nav>
       <HeaderAction />
@@ -51,6 +53,7 @@ function App() {
         <Route path="/requests/new" element={<RequestForm />} />
         <Route path="/requests/:id" element={<RequestDetail />} />
         <Route path="/rwa" element={<QuoteMonitor />} />
+        <Route path="/depth-lab" element={<DepthLab />} />
         <Route path="/depth-audit" element={<DepthAudit />} />
         <Route path="*" element={<div className="wrap page"><h1>Page not found</h1><Link className="button primary" to="/">Home</Link></div>} />
       </Routes>
@@ -58,7 +61,7 @@ function App() {
     <footer className="footer"><div className="wrap footer-inner">
       <div><Brand /><p>Independent community software for Metric.</p></div>
       <div className="footer-links">
-        <Link to="/requests">Market Requests</Link><Link to="/rwa">RWA Quotes</Link>
+        <Link to="/requests">Market Requests</Link><Link to="/depth-lab">Depth Lab</Link><Link to="/rwa">RWA Quotes</Link>
         <a href="https://docs.metric.xyz/" target="_blank" rel="noreferrer">Metric docs</a>
       </div>
     </div></footer>

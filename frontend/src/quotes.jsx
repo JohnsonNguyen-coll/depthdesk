@@ -17,9 +17,9 @@ function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
   const display = data?.score ?? item.score;
   const benchmarkValue = display.reference?.multiplier;
   const status = display.reference?.status ?? 'unavailable';
-  return <aside className="panel quote-detail">
-    <PanelHeading title="Order depth" trailing={<button type="button" className="text-link"
-      aria-label="Refresh order depth" onClick={reload}>Refresh</button>} />
+  return <aside className="panel surface-panel quote-detail" aria-label="Selected pool order depth">
+    <PanelHeading title="Order depth" trailing={<button type="button" className="button secondary"
+      aria-label="Refresh order depth" onClick={reload} disabled={loading}>Refresh</button>} />
     <div className="panel-body summary-content">
       <div className="summary-pair"><PoolMark pool={item} /><div><strong>{item.pair}</strong><small>{item.chain}</small></div></div>
       <form className="quote-size" onSubmit={event => { event.preventDefault(); setSize(Number(visibleSize)); }}>
@@ -27,6 +27,12 @@ function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
           onChange={event => setVisibleSize(event.target.value)} /></label>
         <button className="button secondary" type="submit">Apply</button>
       </form>
+      <div className="button-row quote-presets" role="group" aria-label="Preset order sizes">
+        {[1000, 5000, 10000].map(amount => <button key={amount} type="button" className="button secondary compact"
+          aria-pressed={amount === size} onClick={() => { setVisibleSize(String(amount)); setSize(amount); }}>
+          {number(amount, 0)}
+        </button>)}
+      </div>
       <Feedback loading={loading} error={error} retry={reload}>
         <div className="estimates">
           <Estimate name="Buy estimate" buy item={data?.score.preview?.buy} base={item.base} quote={item.quote} />
@@ -34,6 +40,9 @@ function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
         </div>
       </Feedback>
       <dl className="source-data">
+        <div><dt>Metric bid / ask</dt><dd>{number(display.metric?.bid, 4)} / {number(display.metric?.ask, 4)}</dd></div>
+        <div><dt>Stock bid / ask</dt><dd>{number(display.reference?.bid, 4)} / {number(display.reference?.ask, 4)}</dd></div>
+        <div><dt>Bid / ask gap</dt><dd>{bps(display.sellBps)} / {bps(display.buyBps)}</dd></div>
         <div><dt>Metric snapshot</dt><dd>{timestamp(display.metricAt)}</dd></div>
         <div><dt>Robinhood reference</dt><dd>{timestamp(display.reference?.asOf)}</dd></div>
         {benchmarkValue && <div><dt>Shares per token</dt><dd>{number(benchmarkValue, 10)}</dd></div>}
@@ -41,8 +50,11 @@ function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
       </dl>
       {status === 'closed' && <p>Stock comparisons resume during the regular U.S. equity session. Metric order depth is still available.</p>}
       {status !== 'live' && status !== 'closed' && <p>Stock comparisons require a current reference quote.</p>}
-      <Link className="button primary full-width" to={'/requests/new?chain=' + item.chainId + '&pool=' + item.address + '&size=' + size}>Request liquidity for this pool</Link>
-      <a className="text-link" href={'https://app.metric.xyz/pool/' + item.chainId + '/' + item.address} target="_blank" rel="noreferrer">View on Metric</a>
+      <div className="quote-actions">
+        <Link className="button primary" to={'/depth-lab?chain=' + item.chainId + '&pool=' + item.address + '&size=' + size}>Compare sizes in Depth Lab</Link>
+        <Link className="button secondary" to={'/requests/new?chain=' + item.chainId + '&pool=' + item.address + '&size=' + size}>Request liquidity</Link>
+        <a className="button secondary" href={'https://app.metric.xyz/pool/' + item.chainId + '/' + item.address} target="_blank" rel="noreferrer">View on Metric</a>
+      </div>
     </div>
   </aside>;
 }
@@ -60,10 +72,10 @@ export default function QuoteMonitor() {
     <div className="page-heading with-action">
       <div><h1>RWA Quotes</h1>
         <p>Compare Metric’s buy and sell quotes with the underlying stock, in the same units.</p></div>
-      <button className="text-link" type="button" onClick={reload}>Refresh quotes</button>
+      <button className="button secondary" type="button" onClick={reload} disabled={loading}>Refresh quotes</button>
     </div>
     <div className="quote-layout">
-      <section className="panel board">
+      <section className="panel board surface-panel" aria-label="Tokenized equities">
         <div className="toolbar">
           <span className="network-label">Robinhood Chain</span>
           <label className="search-field"><input value={search} onChange={event => setSearch(event.target.value)}
@@ -73,15 +85,15 @@ export default function QuoteMonitor() {
           empty={!visible.length && (markets.length ? 'No equities match your search.' : 'No verified equity pools are currently available.')}>
           <div className="table-scroll">
             <table className="list-table quotes-table">
-              <thead><tr><th scope="col">Pool</th><th scope="col">Metric bid / ask</th><th scope="col">Stock bid / ask</th><th scope="col">Bid / ask gap</th><th scope="col">Stock reference</th></tr></thead>
+              <thead><tr><th scope="col">Pool</th><th scope="col">Metric bid / ask</th><th scope="col" className="quote-wide">Stock bid / ask</th><th scope="col" className="quote-wide">Bid / ask gap</th><th scope="col">Stock reference</th></tr></thead>
               <tbody>{visible.map(item => <tr key={item.address} className={selected?.address === item.address ? 'selected-row' : ''}>
                 <th scope="row"><button className="table-link" aria-pressed={selected?.address === item.address}
                   type="button" onClick={() => setParams({ pool: item.address }, { replace: true })}>
                   <PoolMark pool={item} /><span>{item.base}<small>{item.quote}</small></span>
                 </button></th>
                 <td className="numeric"><div>{number(item.score.metric.bid, 4)}</div><div className="muted">{number(item.score.metric.ask, 4)}</div></td>
-                <td className="numeric"><div>{number(item.score.reference?.bid, 4)}</div><div className="muted">{number(item.score.reference?.ask, 4)}</div></td>
-                <td className="numeric"><div>{bps(item.score.sellBps)}</div><div className="muted">{bps(item.score.buyBps)}</div></td>
+                <td className="numeric quote-wide"><div>{number(item.score.reference?.bid, 4)}</div><div className="muted">{number(item.score.reference?.ask, 4)}</div></td>
+                <td className="numeric quote-wide"><div>{bps(item.score.sellBps)}</div><div className="muted">{bps(item.score.buyBps)}</div></td>
                 <td><Status value={item.score.reference?.status ?? 'unavailable'} /></td>
               </tr>)}</tbody>
             </table>

@@ -13,9 +13,10 @@ function WalletSession({ children }) {
   useEffect(() => { tokenGetter.current = getAccessToken; }, [getAccessToken]);
   const getToken = useCallback(() => tokenGetter.current(), []);
   const signIn = () => { setError(null); login(); };
-  const signOut = () => {
+  const signOut = async () => {
     setError(null);
-    logout().catch(() => setError('Unable to sign out. Try again.'));
+    try { await logout(); }
+    catch { setError('Unable to sign out. Try again.'); }
   };
   return <WalletContext.Provider value={{
     ready, id: authenticated ? user?.id : null, address: user?.wallet?.address,
