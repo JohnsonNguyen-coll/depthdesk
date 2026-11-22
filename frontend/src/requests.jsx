@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { CampaignReport } from './campaign-report.jsx';
 import { useAction, useApi, useResource } from './api.js';
@@ -65,7 +65,7 @@ export function RequestBoard() {
     <section className="panel board" aria-label="Market requests">
       <div className="audit-banner">
         <div><strong>Live depth audit</strong><p className="muted">See how a real Metric pool is measured at a fixed order size.</p></div>
-        <Link className="text-link" to="/depth-audit">Open audit report</Link>
+        <Link className="button secondary" to="/depth-audit">Open audit report</Link>
       </div>
       <div className="toolbar">
         <div className="segmented" aria-label="Request status">
@@ -222,22 +222,30 @@ export function RequestDetail() {
   const mutate = (operation, payload) => action.submit(async () => { await write(url + '/' + operation, payload); reload(); });
   const user = session.data?.user;
 
+  useEffect(() => {
+    if (!copied) return;
+    const timeout = setTimeout(() => setCopied(''), 4000);
+    return () => clearTimeout(timeout);
+  }, [copied]);
+
   async function copyLink() {
     try { await navigator.clipboard.writeText(location.href); setCopied('Link copied'); }
     catch { setCopied('Copy the address from your browser.'); }
   }
 
   return <div className="wrap page">
-    <Link className="back-link" to="/requests">Market requests</Link>
+    <Link className="button secondary request-back" to="/requests">Back to requests</Link>
     <Feedback loading={loading} error={error} retry={reload}>
       {data && <>
-        <div className="page-heading with-action">
-          <div><span className="section-label"><PoolMark pool={campaignWithIcons(data, icons)} /> {data.pair} · {names[data.chainId] ?? data.chainId}</span>
-            <h1>{data.title}</h1><p>Sponsored by {data.sponsor}</p></div>
-          <div className="button-row"><Status value={data.status} />
-            <button className="text-link" onClick={copyLink} type="button">Copy link</button></div>
+        <div className="page-heading">
+          <span className="section-label"><PoolMark pool={campaignWithIcons(data, icons)} /> {data.pair} · {names[data.chainId] ?? data.chainId}</span>
+          <h1>{data.title}</h1>
+          <div className="button-row request-heading-meta">
+            <div className="button-row"><p>Sponsored by {data.sponsor}</p><Status value={data.status} /></div>
+            <button className="button secondary" onClick={copyLink} type="button">Copy link</button>
+          </div>
         </div>
-        {copied && <div className="toast" role="status" onClick={() => setCopied('')}>{copied}</div>}
+        <div className="toast" role="status">{copied}</div>
         <div className="detail-layout">
           <div className="stack">
             <section className="panel"><PanelHeading title="Requirements" />
@@ -282,10 +290,12 @@ export function RequestDetail() {
                 <div><dt>Schedule</dt><dd>{data.periods} {data.schedule === 'market_open' ? 'market opens' : 'days'}</dd></div>
                 {data.startsAt && <div><dt>First check</dt><dd>{timestamp(data.startsAt)}</dd></div>}
               </dl>
-              <a className="text-link" href={'https://app.metric.xyz/pool/' + data.chainId + '/' + data.address} target="_blank" rel="noreferrer">View Metric pool</a>
-              {data.mine && ['open', 'scheduled', 'active'].includes(data.status) &&
-                <button className="button secondary danger compact" type="button" disabled={action.saving}
-                  onClick={() => { if (window.confirm('Cancel this campaign?')) mutate('cancel'); }}>Cancel request</button>}
+              <div className="request-target-actions">
+                <a className="button primary" href={'https://app.metric.xyz/pool/' + data.chainId + '/' + data.address} target="_blank" rel="noreferrer">View Metric pool</a>
+                {data.mine && ['open', 'scheduled', 'active'].includes(data.status) &&
+                  <button className="button secondary danger" type="button" disabled={action.saving}
+                    onClick={() => { if (window.confirm('Cancel this campaign?')) mutate('cancel'); }}>Cancel request</button>}
+              </div>
             </div>
           </aside>
         </div>

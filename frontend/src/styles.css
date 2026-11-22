@@ -123,6 +123,10 @@ tbody th { font-weight: 650; }
 .page-heading h1 { font: 700 clamp(44px, 5.1vw, 74px)/1.01 var(--display); letter-spacing: -.075em; margin-block: 12px 10px; overflow-wrap: anywhere; }
 .page-heading p { color: var(--muted); line-height: 1.55; max-width: 680px; }
 .page-heading .section-label .asset-pair > .asset-mark { width: 30px; height: 30px; }
+.request-back { margin-bottom: 22px; }
+.request-heading-meta { justify-content: space-between; }
+.request-heading-meta .status { padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, currentColor 13%, transparent); }
+.request-target-actions { display: grid; gap: 9px; }
 .panel { min-width: 0; }
 .panel-body { padding-block: 18px; }
 .panel-footer { padding-block: 14px; }
@@ -195,7 +199,7 @@ dd { margin: 0; text-align: right; }
 .report-segment.missing { background: #575757; }
 .sample-table tbody th { font-weight: 500; }
 .sample-table td, .sample-table th { padding: 10px 14px; }
-.toast { position: fixed; z-index: 9; right: 20px; bottom: 20px; background: var(--accent-surface); color: var(--accent-hover); padding: 12px 17px; border: 1px solid var(--strong-border); border-radius: 8px; }
+.toast:not(:empty) { position: fixed; z-index: 9; right: 20px; bottom: 20px; max-width: calc(100% - 40px); background: var(--accent-surface); color: var(--accent-hover); padding: 12px 17px; border: 1px solid var(--strong-border); border-radius: 8px; }
 .network-label { white-space: nowrap; font-size: .875rem; font-weight: 600; }
 .quotes-table th, .quotes-table td { padding: 11px 13px; }
 .quotes-table td div + div { margin-top: 4px; }
