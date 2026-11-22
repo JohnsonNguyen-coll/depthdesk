@@ -305,10 +305,12 @@ dd { margin: 0; text-align: right; }
   .hero-lightning { left: 0; right: -33%; opacity: .74; }
   .quote-layout, .detail-layout { grid-template-columns: 1fr; }
 }
-@media (max-width: 650px) {
-  .wrap { width: calc(100% - 32px); }
+@media (max-width: 820px) {
   .topbar-inner { grid-template-columns: 1fr auto; gap: 0 10px; padding-top: 10px; }
   .topbar nav { grid-row: 2; grid-column: 1 / -1; justify-content: space-between; gap: 3px; margin: 7px 0 8px; }
+}
+@media (max-width: 650px) {
+  .wrap { width: calc(100% - 32px); }
   .topbar nav a { min-height: 40px; padding-inline: 7px; font-size: .84rem; }
   .brand { font-size: 1.06rem; }
   .brand-icon { width: 34px; height: 34px; }
