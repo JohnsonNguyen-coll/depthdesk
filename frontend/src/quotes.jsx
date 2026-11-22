@@ -3,13 +3,33 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useResource } from './api.js';
 import { bps, Feedback, number, PanelHeading, PoolMark, SourceNote, Status, timestamp } from './ui.jsx';
 
-function Estimate({ name, item, base, quote, buy = false }) {
-  return <div className="estimate">
-    <span>{name}</span>
-    {item?.price ? <><strong>{number(item.price, 6)}</strong><small>{quote} per {base} · {item.bins} {item.bins === 1 ? 'bin' : 'bins'}</small>
-      <small>{number(item.paid, 8)} {buy ? quote : base} in · {number(item.received, 8)} {buy ? base : quote} out</small>
-      {!item.complete && <small className="warning">Partial depth</small>}</> : <strong>—</strong>}
-  </div>;
+function QuoteEstimates({ preview, base, quote }) {
+  const sides = [
+    { name: 'Buy', item: preview?.buy, input: quote, output: base },
+    { name: 'Sell', item: preview?.sell, input: base, output: quote }
+  ];
+  return <section className="quote-estimates" aria-label="Trade estimates">
+    <p className="quote-unit">Estimated price · {quote} per {base}</p>
+    <dl className="quote-prices">
+      {sides.map(({ name, item }) => <div key={name}>
+        <dt>{name}</dt>
+        <dd><strong>{number(item?.price, item?.price > 0 && item.price < 0.01 ? 8 : 4)}</strong>
+          {item && !item.complete && <small className="warning">Partial fill</small>}</dd>
+      </div>)}
+    </dl>
+    {sides.some(({ item }) => item) && <details className="data-disclosure">
+      <summary>Fill details</summary>
+      <table className="fill-table">
+        <thead><tr><th scope="col">Side</th><th scope="col">Input</th><th scope="col">Output</th><th scope="col">Bins</th></tr></thead>
+        <tbody>{sides.map(({ name, item, input, output }) => <tr key={name}>
+          <th scope="row">{name}</th>
+          <td>{item ? `${number(item.paid, 8)} ${input}` : '—'}</td>
+          <td>{item ? `${number(item.received, 8)} ${output}` : '—'}</td>
+          <td>{item?.bins ?? '—'}</td>
+        </tr>)}</tbody>
+      </table>
+    </details>}
+  </section>;
 }
 
 function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
@@ -34,21 +54,21 @@ function QuoteDetail({ item, size, setSize, visibleSize, setVisibleSize }) {
         </button>)}
       </div>
       <Feedback loading={loading} error={error} retry={reload}>
-        <div className="estimates">
-          <Estimate name="Buy estimate" buy item={data?.score.preview?.buy} base={item.base} quote={item.quote} />
-          <Estimate name="Sell estimate" item={data?.score.preview?.sell} base={item.base} quote={item.quote} />
-        </div>
+        <QuoteEstimates preview={data?.score.preview} base={item.base} quote={item.quote} />
       </Feedback>
-      <dl className="source-data">
-        <div><dt>Metric bid / ask</dt><dd>{number(display.metric?.bid, 4)} / {number(display.metric?.ask, 4)}</dd></div>
-        <div><dt>Stock bid / ask</dt><dd>{number(display.reference?.bid, 4)} / {number(display.reference?.ask, 4)}</dd></div>
-        <div><dt>Bid / ask gap</dt><dd>{bps(display.sellBps)} / {bps(display.buyBps)}</dd></div>
-        <div><dt>Metric snapshot</dt><dd>{timestamp(display.metricAt)}</dd></div>
-        <div><dt>Robinhood reference</dt><dd>{timestamp(display.reference?.asOf)}</dd></div>
-        {benchmarkValue && <div><dt>Shares per token</dt><dd>{number(benchmarkValue, 10)}</dd></div>}
-        <div><dt>Reference status</dt><dd><Status value={status} /></dd></div>
-      </dl>
-      {status === 'closed' && <p>Stock comparisons resume during the regular U.S. equity session. Metric order depth is still available.</p>}
+      <div className="quote-reference"><span>Stock reference</span><Status value={status} /></div>
+      <details className="data-disclosure">
+        <summary>Reference and timestamps</summary>
+        <dl className="source-data">
+          <div><dt>Metric bid / ask</dt><dd>{number(display.metric?.bid, 4)} / {number(display.metric?.ask, 4)}</dd></div>
+          <div><dt>Stock bid / ask</dt><dd>{number(display.reference?.bid, 4)} / {number(display.reference?.ask, 4)}</dd></div>
+          <div><dt>Bid / ask gap</dt><dd>{bps(display.sellBps)} / {bps(display.buyBps)}</dd></div>
+          <div><dt>Metric snapshot</dt><dd>{timestamp(display.metricAt)}</dd></div>
+          <div><dt>Robinhood reference</dt><dd>{timestamp(display.reference?.asOf)}</dd></div>
+          {benchmarkValue && <div><dt>Shares per token</dt><dd>{number(benchmarkValue, 10)}</dd></div>}
+        </dl>
+      </details>
+      {status === 'closed' && <p>Stock comparisons resume during U.S. market hours.</p>}
       {status !== 'live' && status !== 'closed' && <p>Stock comparisons require a current reference quote.</p>}
       <div className="quote-actions">
         <Link className="button primary" to={'/depth-lab?chain=' + item.chainId + '&pool=' + item.address + '&size=' + size}>Compare sizes in Depth Lab</Link>

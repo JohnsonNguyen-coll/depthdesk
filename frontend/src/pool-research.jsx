@@ -47,16 +47,28 @@ function exportScenarios(pool, quote, mid, tolerance, scenarios) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function DepthCell({ side, impact, base, buy = false }) {
+function DepthCell({ side, impact }) {
+  const price = side?.price;
+  const coverage = fillCoverage(side);
+  return <td className="numeric">
+    <span>{number(price, price > 0 && price < 0.01 ? 8 : 4)}</span>
+    {impact != null && <small>{number(impact) + ' bps'}</small>}
+    {side && <div className={side.complete ? 'depth-meter' : 'depth-meter partial'} role="meter" aria-label="Order coverage"
+      aria-valuemin={0} aria-valuemax={100} aria-valuenow={coverage} aria-valuetext={coverage + '% covered'}
+      title={coverage + '% covered'}><span style={{ width: coverage + '%' }} /></div>}
+  </td>;
+}
+
+function fillCoverage(side) {
+  if (!side) return 0;
+  return side.complete ? 100 : Math.min(99.9, Math.floor(side.coverage * 10) / 10);
+}
+
+function FillCell({ side, base, buy = false }) {
   if (!side) return <td className="muted">—</td>;
-  return <td>
-    <div className="depth-cell">
-      <span>{side.price == null ? '—' : number(side.price, 6)}</span>
-      <span className={side.complete ? 'data-accent' : 'muted'}>{number(Math.floor(side.coverage), 0)}% covered</span>
-    </div>
-    <div className="depth-track" aria-hidden="true"><span style={{ width: side.coverage + '%' }} /></div>
-    <small className="depth-quantity">{impact == null ? '—' : number(impact) + ' bps'} from midpoint</small>
-    <small className="depth-quantity">{number(buy ? side.received : side.paid, 8)} {base} · {side.bins} {side.bins === 1 ? 'bin' : 'bins'}</small>
+  return <td className="numeric">
+    <span>{number(fillCoverage(side), 1)}% covered</span>
+    <small>{number(buy ? side.received : side.paid, 8)} {base} · {side.bins} {side.bins === 1 ? 'bin' : 'bins'}</small>
   </td>;
 }
 
@@ -102,17 +114,30 @@ function DepthStudy({ chainId, address, size, tolerance, update }) {
       </div>
       <div className="table-scroll">
         <table className="depth-table" aria-label="Buy and sell estimates by order size">
-          <thead><tr><th>Size ({pool.quote})</th><th>Buy estimate</th><th>Sell estimate</th><th>Result</th></tr></thead>
+          <thead><tr><th scope="col">Size ({pool.quote})</th><th scope="col">Buy</th><th scope="col">Sell</th><th scope="col">Result</th></tr></thead>
           <tbody>{scenarios.map(item => <tr className={item.amount === size ? 'depth-current' : ''} key={item.amount}>
             <th scope="row">{number(item.amount, 0)}</th>
-            <DepthCell side={item.buy} impact={item.buyBps} base={pool.base} buy />
-            <DepthCell side={item.sell} impact={item.sellBps} base={pool.base} />
-            <td className={item.status === 'Within tolerance' ? 'data-accent' : 'muted'}>{item.status}</td>
+            <DepthCell side={item.buy} impact={item.buyBps} />
+            <DepthCell side={item.sell} impact={item.sellBps} />
+            <td className={item.status === 'Partial fill' || item.status === 'Outside tolerance' ? 'depth-caution' : 'muted'}>
+              {item.status === 'Within tolerance' ? 'Pass' : item.status === 'Outside tolerance' ? 'Outside limit' : item.status}
+            </td>
           </tr>)}</tbody>
         </table>
       </div>
+      {hasDepth && <details className="data-disclosure depth-fill-details">
+        <summary>Fill details</summary>
+        <div className="table-scroll"><table className="depth-table depth-fill-table">
+          <thead><tr><th scope="col">Size ({pool.quote})</th><th scope="col">Buy fill</th><th scope="col">Sell fill</th></tr></thead>
+          <tbody>{scenarios.map(item => <tr key={item.amount}>
+            <th scope="row">{number(item.amount, 0)}</th>
+            <FillCell side={item.buy} base={pool.base} buy />
+            <FillCell side={item.sell} base={pool.base} />
+          </tr>)}</tbody>
+        </table></div>
+      </details>}
       <p className="research-note">
-        {hasQuote ? 'Prices in ' + pool.quote + ' per ' + pool.base + '. A size passes when both sides fill in full within the tolerance of the pool midpoint.'
+        {hasQuote ? pool.quote + ' per ' + pool.base + ' · bps from the pool midpoint. Both sides must fill within the limit to pass.'
           : quote.status === 'stale' ? 'The latest Metric quote is stale.' : 'A current Metric quote is unavailable.'}
         {quote.asOf && <span>Snapshot {timestamp(quote.asOf)}</span>}
       </p>
